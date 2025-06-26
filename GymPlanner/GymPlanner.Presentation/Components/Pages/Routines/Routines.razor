@@ -1,0 +1,359 @@
+@page "/routines"
+@attribute [Authorize(Roles = $"{GymPlanner.Common.Constants.Roles.Admin},{GymPlanner.Common.Constants.Roles.User}")]
+@rendermode InteractiveServer
+@using GymPlanner.Application.Routines.Commands.ActivateRoutine
+@using GymPlanner.Application.Routines.Commands.DeactivateRoutine
+@using Microsoft.AspNetCore.Components.Authorization
+@inject BreadcrumbService BreadcrumbSvc
+
+@inject IQueryDispatcher QueryDispatcher
+@inject ICommandDispatcher CommandDispatcher
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Mis Rutinas</PageTitle>
+
+<div class="page-grid-container">
+    <header class="page-header">
+        <div class="text-center mb-3">
+            <h1 class="display-6 fw-bold text-primary mb-2">
+                <i class="bi bi-calendar2-week me-2"></i>Mis Rutinas
+            </h1>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="flex-grow-1" style="min-width:260px;">
+                <InputText class="form-control" placeholder="Buscar por nombre..." @bind-Value="_filter"
+                    @oninput="OnFilterTextChanged" />
+            </div>
+            <button class="btn btn-secondary" @onclick="ClearFilters" type="button" title="Limpiar filtros">
+                <i class="bi bi-x-circle"></i>
+            </button>
+            <button class="btn btn-primary d-flex align-items-center gap-2" @onclick="CreateNew">
+                <i class="bi bi-plus-circle"></i>
+                <span>Nueva rutina</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="page-content">
+        @if (_isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        }
+        else if (!RoutineList.Any())
+        {
+            <div class="alert alert-info text-center py-5 rounded-4 shadow-lg" role="alert">
+                <i class="bi bi-emoji-frown display-1 text-info mb-3"></i>
+                <h4 class="alert-heading text-info-emphasis">¡Aún no tienes rutinas!</h4>
+                <p class="mb-4">Crea tu primera rutina semanal para empezar a organizar tus entrenamientos.</p>
+                <hr>
+                <a href="/routines/add" class="btn btn-primary btn-lg rounded-pill px-4 shadow-sm">
+                    <i class="bi bi-plus-circle me-2"></i>Crear rutina
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="row row-cols-1 g-4">
+                @foreach (var routine in RoutineList)
+                {
+                    <div class="col">
+                        <div class="card h-100 shadow-sm border-0 rounded-4 routine-card-modern">
+                            <div class="card-body d-flex flex-column p-4">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <h5 class="card-title text-dark fw-bold mb-0">@routine.Name</h5>
+                                            @if (routine.IsActive)
+                                            {
+                                                <span class="badge bg-success text-white rounded-pill px-3 py-1">Activa</span>
+                                            }
+                                        </div>
+                                        <small class="text-muted">
+                                            @routine.Days.Count @((routine.Days.Count == 1) ? "día" : "días")
+                                        </small>
+                                    </div>
+                                    <div class="d-flex flex-row align-items-end gap-2">
+
+                                        @if (!routine.IsActive)
+                                        {
+                                            <button class="btn btn-success btn-sm rounded-pill py-1 px-3"
+                                                @onclick="() => ShowActivateConfirmation(routine.Id)" title="Activar rutina">
+                                                <i class="bi bi-play-circle"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-secondary btn-sm rounded-pill py-1 px-3"
+                                                @onclick="() => ShowDeactivateConfirmation(routine.Id)" title="Desactivar rutina">
+                                                <i class="bi bi-pause-circle"></i>
+                                            </button>
+                                        }
+
+                                        <a class="btn btn-primary btn-sm rounded-pill py-1 px-3"
+                                            href="/routines/edit/@routine.Id" title="Editar rutina">
+                                            <i class="bi bi-pencil-fill"></i>
+                                        </a>
+                                        <button class="btn btn-danger btn-sm rounded-pill py-1 px-3"
+                                            @onclick="() => ShowDeleteConfirmation(routine.Id)" title="Eliminar rutina">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(routine.Description))
+                                {
+                                    <p class="card-text text-secondary mb-3 flex-grow-0">@routine.Description</p>
+                                }
+
+                                <div class="routine-days-list row row-cols-7 g-3">
+                                    @foreach (var day in routine.Days.Where(d => d.Trainings.Any()).OrderBy(x => x.DayOfWeek))
+                                    {
+                                        <div class="col">
+                                            <div class="h-100 p-2 border rounded-4 bg-light routine-day-card d-flex flex-column">
+                                                <div class="fw-semibold mb-2 d-flex align-items-center gap-2">
+                                                    <i class="bi bi-calendar-event"></i>
+                                                    <span>@GetDayName(day.DayOfWeek)</span>
+                                                    <span class="badge bg-info ms-2">@day.Trainings.Count @((day.Trainings.Count ==
+                                                                                                    1) ? "entrenamiento" : "entrenamientos")</span>
+                                    </div>
+                                    <div class="routine-day-trainings-list ps-1">
+                                        @foreach (var tpl in day.Trainings)
+                                                    {
+                                                        <div class="p-2 mb-2 border rounded-3 bg-white routine-template-item">
+                                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                                <strong class="text-primary">@tpl.Name</strong>
+                                                                @if (!string.IsNullOrWhiteSpace(tpl.Description))
+                                                                {
+                                                                    <small class="text-muted ms-2">@tpl.Description</small>
+                                                                }
+                                                            </div>
+                                                            @if (tpl.Exercises?.Any() == true)
+                                                            {
+                                                                <div class="routine-exercises-list row g-2">
+                                                                    @foreach (var ex in tpl.Exercises.Take(2))
+                                                                    {
+                                                                        <div class="col-12">
+                                                                            <div
+                                                                                class="p-2 border rounded-3 bg-light exercise-item d-flex flex-row align-items-center gap-2">
+                                                                                <span class="fw-bold text-dark">@ex.ExerciseName</span>
+                                                                                <span
+                                                                                    class="badge bg-secondary-subtle text-secondary ms-2">@ex.BodyPartName</span>
+                                                                                @if (ex.IsKeyExercise)
+                                                                                {
+                                                                                    <span class="ms-2 badge bg-warning text-dark"><i
+                                                                                            class="bi bi-star-fill me-1"></i>Clave</span>
+                                                                                }
+                                                                            </div>
+                                                                        </div>
+                                                                    }
+                                                                    @if (tpl.Exercises.Count > 2)
+                                                                    {
+                                                                        <div class="col-12">
+                                                                            <small class="text-muted ms-2"><i class="bi bi-three-dots"></i>
+                                                                                +@(tpl.Exercises.Count - 2) ejercicios más...</small>
+                                                                        </div>
+                                                                    }
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+        }
+    </main>
+
+    <footer class="page-footer">
+        <Pagination CurrentPage="CurrentPage" TotalPages="TotalPages" PageSize="PageSize" TotalCount="TotalCount"
+            OnPageChanged="LoadRoutines" OnPageSizeChanged="ChangePageSize"
+            PageSizeOptions="new int[] { 5, 10, 20, 50, 100 }" />
+    </footer>
+</div>
+
+<ConfirmationModal @ref="_deleteConfirmationModal" ModalId="deleteModal" Title="Eliminar rutina"
+    Message="¿Seguro que deseas eliminar esta rutina?" ConfirmText="Eliminar" ConfirmButtonClass="btn-danger"
+    ConfirmIcon="bi bi-trash" OnConfirm="DeleteRoutine" />
+
+<ConfirmationModal @ref="_activateConfirmationModal" ModalId="activateModal" Title="Activar rutina"
+    Message="¿Seguro que quieres activar esta rutina?" ConfirmText="Activar" ConfirmButtonClass="btn-success"
+    ConfirmIcon="bi bi-play-circle" OnConfirm="ActivateRoutine" />
+
+<ConfirmationModal @ref="_deactivateConfirmationModal" ModalId="deactivateModal" Title="Desactivar rutina"
+    Message="¿Seguro que quieres desactivar esta rutina? Se eliminarán todos los posteriores al día de h."
+    ConfirmText="Desactivar" ConfirmButtonClass="btn-success" ConfirmIcon="bi bi-pause-circle"
+    OnConfirm="DeactivateRoutine" />
+
+
+<style>
+    .routine-card-modern {
+        overflow: hidden;
+    }
+
+    .routine-card-modern:hover {
+        box-shadow: 0 1.2rem 2.5rem rgba(0, 0, 0, 0.11) !important;
+    }
+
+    .card-title {
+        color: #343a40;
+    }
+
+    .routine-template-item {
+        background-color: #e9ecef;
+        border-color: #dee2e6;
+        transition: background-color 0.2s ease;
+    }
+
+    .routine-template-item:hover {
+        background-color: #e2e6ea;
+    }
+
+    .exercise-item .badge {
+        font-size: 0.78em;
+        padding: 0.4em 0.8em;
+    }
+</style>
+
+@code {
+    private List<RoutineViewModel> RoutineList = [];
+    private string? _filter;
+    private int CurrentPage = 1;
+    private int TotalPages;
+    private int TotalCount = 0;
+    private int PageSize = 10;
+    private bool _isLoading = true;
+    private Guid _selectedRoutineId;
+    private ConfirmationModal _deleteConfirmationModal = new();
+    private ConfirmationModal _activateConfirmationModal = new();
+    private ConfirmationModal _deactivateConfirmationModal = new();
+
+    private Guid? _userId;
+    private Guid _routineToActivateId;
+    private Guid _routineToDeactivateId;
+    protected override async Task OnInitializedAsync()
+    {
+        BreadcrumbSvc.SetBreadcrumbs(new List<BreadcrumbItem>
+{
+new("Inicio", "/"),
+new("Rutinas", "/routines")
+});
+        await GetUserIdAsync();
+        await LoadRoutines(1);
+    }
+
+    private async Task GetUserIdAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var idString = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        _userId = Guid.TryParse(idString, out var id) ? id : null;
+    }
+
+    private async Task OnFilterTextChanged(ChangeEventArgs e)
+    {
+        _filter = e.Value?.ToString();
+        CurrentPage = 1;
+        await LoadRoutines(CurrentPage);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ChangePageSize(int newSize)
+    {
+        PageSize = newSize;
+        CurrentPage = 1;
+        await LoadRoutines(CurrentPage);
+    }
+
+    private async Task LoadRoutines(int page)
+    {
+        _isLoading = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            CurrentPage = page;
+            var query = new GetRoutinesQuery
+            {
+                PageNumber = CurrentPage,
+                PageSize = PageSize,
+                Filter = _filter,
+                UserId = _userId
+            };
+            var result = await QueryDispatcher.Dispatch<GetRoutinesQuery, PaginatedResult<RoutineDto>>(query,
+            CancellationToken.None);
+            RoutineList = result.Items.Select(RoutineMappings.ToViewModel).ToList();
+            TotalCount = result.TotalCount;
+            TotalPages = (int)Math.Ceiling((double)result.TotalCount / PageSize);
+        }
+        finally
+        {
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void Edit(Guid id) => Nav.NavigateTo($"/routines/edit/{id}");
+    private void CreateNew() => Nav.NavigateTo("/routines/add");
+
+    private async Task ShowDeleteConfirmation(Guid id)
+    {
+        _selectedRoutineId = id;
+        await _deleteConfirmationModal.ShowAsync();
+    }
+
+    private async Task DeleteRoutine()
+    {
+        var command = new DeleteRoutineCommand { Id = _selectedRoutineId };
+        await CommandDispatcher.Dispatch<DeleteRoutineCommand, bool>(command, CancellationToken.None);
+        if (RoutineList.Count == 1 && CurrentPage > 1) CurrentPage--;
+        await LoadRoutines(CurrentPage);
+    }
+
+    private async Task ClearFilters()
+    {
+        _filter = null;
+        CurrentPage = 1;
+        await LoadRoutines(CurrentPage);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string GetDayName(int dayOfWeek)
+    {
+        return CultureInfo.CurrentCulture.DateTimeFormat.GetDayName((DayOfWeek)(dayOfWeek % 7));
+    }
+
+    private async Task ShowActivateConfirmation(Guid id)
+    {
+        _routineToActivateId = id;
+        await _activateConfirmationModal.ShowAsync();
+    }
+
+    private async Task ShowDeactivateConfirmation(Guid id)
+    {
+        _routineToDeactivateId = id;
+        await _deactivateConfirmationModal.ShowAsync();
+    }
+
+    private async Task ActivateRoutine()
+    {
+        var command = new ActivateRoutineCommand { Id = _routineToActivateId, UserId = _userId ?? Guid.Empty };
+        await CommandDispatcher.Dispatch<ActivateRoutineCommand, bool>(command, CancellationToken.None);
+        await LoadRoutines(CurrentPage);
+    }
+
+    private async Task DeactivateRoutine()
+    {
+        var command = new DeactivateRoutineCommand { Id = _routineToDeactivateId };
+        await CommandDispatcher.Dispatch<DeactivateRoutineCommand, bool>(command, CancellationToken.None);
+        await LoadRoutines(CurrentPage);
+    }
+}

@@ -1,0 +1,129 @@
+.page {
+    display: grid;
+    grid-template-columns: 20rem 1fr;
+    grid-template-rows: 1fr;
+    grid-template-areas: "sidebar main";
+    min-height: 100vh;
+    height: 100vh;
+}
+
+.page > * {
+    grid-area: sidebar;
+}
+
+.page > .main-container {
+    grid-area: main;
+}
+
+.page.no-sidebar {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main";
+}
+
+.page.no-sidebar > .main-container {
+    grid-area: main;
+}
+
+.main-container {
+    grid-area: main;
+    background-color: #f3f3f3;   
+    overflow-x: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+    .page {
+        display: block;
+        height: auto;
+        min-height: 100vh;
+    }
+    
+    .main-container {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        height: auto;
+    }
+    
+    .main-header {
+        flex: 0 0 auto;
+    }
+
+}
+
+.top-bar { 
+    height: 3.5rem;
+    grid-area: topbar;
+}
+
+.offcanvas { 
+    width: 20rem; 
+}
+
+@media (max-width: 767.98px) {
+    .offcanvas {
+        width: 100% !important;
+    }
+}
+
+@media (min-width: 768px) {
+    .offcanvas-start {
+        position: static;
+        transform: none !important;
+        visibility: visible !important;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+}
+
+.offcanvas-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.brand {
+    border-bottom: 1px solid rgba(255,255,255,.1);
+}
+
+.bottom-panel {
+    border-top: 1px solid rgba(255,255,255,.1);
+}
+
+.bottom-panel .btn {
+    font-size: .875rem;
+}
+
+@media (max-width: 767.98px) {
+    .sidebar .btn-close {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        filter: invert(1);
+        z-index: 1050;
+    }
+}
+
+
+
+#blazor-error-ui {
+    background: lightyellow;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}

@@ -1,0 +1,65 @@
+@page "/profile"
+@using GymPlanner.Presentation.Dispatchers
+@using GymPlanner.Application.Emails.Commands
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{GymPlanner.Common.Constants.Roles.Admin},{GymPlanner.Common.Constants.Roles.User}")]
+@inject ICommandDispatcher CommandDispatcher
+@inject IEmailSender EmailSender
+@inject NavigationManager Navigation
+@inject BreadcrumbService BreadcrumbSvc
+
+<PageTitle>Perfil</PageTitle>
+
+<div class="edit-grid-container">
+    <header class="edit-header">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="fs-5 fw-semibold">Perfil</span>
+            <span class="flex-grow-1"></span>
+        </div>
+    </header>
+
+    <main class="edit-content">
+        <div class="alert alert-info">
+            Desde aquí puedes enviarte un correo de prueba para verificar la funcionalidad del sistema de email.
+        </div>
+        <button class="btn btn-primary" @onclick="SendTestEmail">
+            <i class="bi bi-envelope"></i> Enviar correo de prueba
+        </button>
+
+        @if (!string.IsNullOrEmpty(ResultMessage))
+        {
+            <div class="alert alert-success mt-3">@ResultMessage</div>
+        }
+    </main>
+
+    <footer class="edit-footer">
+        <button class="btn btn-secondary" @onclick="() => Navigation.NavigateTo('/'.ToString())">
+            <i class="bi bi-arrow-left"></i> Volver
+        </button>
+    </footer>
+</div>
+
+@code {
+    private string? ResultMessage;
+
+    protected override void OnInitialized()
+    {
+        BreadcrumbSvc.SetBreadcrumbs(new()
+{
+new("Inicio", "/"),
+new("Perfil", "/profile")
+});
+    }
+
+    private async Task SendTestEmail()
+    {
+        var command = new SendEmailCommand()
+        {
+            To = "gymplannerpfg@gmail.com",
+            Subject = "Correo de prueba",
+            Body = "Este es un correo enviado desde GymPlanner."
+        };
+        await CommandDispatcher.Dispatch<SendEmailCommand, bool>(command, CancellationToken.None);
+        ResultMessage = "Correo enviado correctamente.";
+    }
+}

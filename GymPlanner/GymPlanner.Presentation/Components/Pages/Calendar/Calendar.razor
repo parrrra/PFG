@@ -1,0 +1,262 @@
+@page "/calendar"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{GymPlanner.Common.Constants.Roles.Admin},{GymPlanner.Common.Constants.Roles.User}")]
+@using System.Globalization
+@using GymPlanner.Application.Trainings.DTOs
+@using GymPlanner.Application.Trainings.Queries.GetTrainings
+@using GymPlanner.Presentation.Dispatchers
+@using Microsoft.AspNetCore.Components.Authorization
+@inject BreadcrumbService BreadcrumbSvc
+@inject IQueryDispatcher QueryDispatcher
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+
+<PageTitle>Calendario</PageTitle>
+
+<div class="list-grid-container">
+    <header class="list-header">
+        <div class="list-header-content">
+            <h3 class="mb-0 flex-grow-1">
+                @CultureInfo.CurrentCulture.TextInfo.ToTitleCase(currentMonth.ToString("MMMM yyyy", CultureInfo.CurrentCulture))
+            </h3>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" @onclick="GoToToday" type="button">
+                    <i class="bi bi-calendar-event"></i> Mes actual
+                </button>
+                <button class="btn btn-secondary" @onclick="PreviousMonth" type="button">
+                    <i class="bi bi-arrow-left"></i>
+                    <span class="d-none d-md-inline">Anterior</span>
+                </button>
+                <button class="btn btn-secondary" @onclick="NextMonth" type="button">
+                    <span class="d-none d-md-inline">Siguiente</span>
+                    <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="list-content">
+        <div class="main-table-container">
+            <table class="table calendar-table table-bordered text-center m-0" style="table-layout: fixed; height: 100%;">
+                <thead>
+                    <tr>
+                        @foreach (var day in dayNames)
+                        {
+                            <th class="py-3">@day</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < 6; i++)
+                    {
+                        if (i < weeks.Count)
+                        {
+                            <tr style="height: 16.6667%;">
+                                @foreach (var day in weeks[i])
+                                {
+                                    var isCurrentMonth = day.Month == currentMonth.Month;
+                                    <td tabindex="0"
+                                        class="@GetCellClass(day) @(isCurrentMonth ? "" : "bg-light") position-relative text-start p-1 align-top"
+                                        @onclick="() => SelectDate(day)"
+                                        data-label="@dayNames[(int)((int)day.DayOfWeek + 6) % 7]">
+                                        <div class="d-flex justify-content-end pe-1">
+                                            @if (day.Date == DateTime.Today.Date)
+                                            {
+                                                <span class="today-date day-number">@day.Day</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="fw-bold day-number @(isCurrentMonth ? "" : "text-muted opacity-50")">@day.Day</span>
+                                            }
+                                        </div>
+
+                                        @if (isCurrentMonth)
+                                        {
+                                            if (dayTrainings.TryGetValue(day.Date, out var trainings))
+                                            {
+                                                <div class="d-flex flex-column gap-1 mt-1">
+                                                    @foreach (var training in trainings)
+                                                    {
+                                                        var tooltipHtml = string.Join("<br />",
+                                                            training.Exercises.OrderBy(e => e.Order).Select(e =>
+                                                                $"{e.Order}. {e.ExerciseName} - {e.StartWeight} kg"));
+
+                                                        <span class="badge bg-primary text-white text-truncate w-100"
+                                                            @onclick="@(e => Navigation.NavigateTo($"/trainings/edit/{training.Id}"))"
+                                                            data-bs-toggle="tooltip"
+                                                            data-bs-html="true"
+                                                            title="@tooltipHtml">
+                                                            @training.TrainingTemplateName
+                                                        </span>
+                                                    }
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="badge bg-info-subtle text-dark w-100 mt-1 border border-info-subtle">
+                                                    No hay entrenamientos
+                                                </div>
+                                            }
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <footer class="list-footer d-flex justify-content-between align-items-center">
+        <span class="fw-bold">Total entrenamientos: @dayTrainings.Values.Sum(x => x.Count)</span>
+        <small class="text-muted">Haz clic en una celda para ver o editar entrenamientos</small>
+    </footer>
+</div>
+
+
+<script>
+    window.bootstrapInterop = {
+        initializeTooltips: () => {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.forEach(t => {
+                const tooltip = new bootstrap.Tooltip(t, {
+                    customClass: 'text-start-tooltip'
+                });
+            });
+        }
+    };
+</script>
+
+@code {
+    private DateTime currentMonth = DateTime.Today;
+    private DateTime? selectedDate = null;
+    private List<string> dayNames = new();
+    private List<List<DateTime>> weeks = new();
+    private Dictionary<DateTime, List<TrainingDto>> dayTrainings = new();
+
+    private Guid? _userId;
+    private bool _hasRendered = false;
+    private bool _trainingsLoaded = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        BreadcrumbSvc.SetBreadcrumbs(new()
+        {
+            new("Inicio", "/"),
+            new("Calendario", "/calendar")
+        });
+
+        await GetUserIdAsync();
+        SetDayNamesStartingMonday();
+        await GenerateCalendar();
+    }
+
+    private async Task GetUserIdAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _userId = Guid.TryParse(user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
+    }
+
+    private void SetDayNamesStartingMonday()
+    {
+        for (int i = 1; i <= 7; i++)
+        {
+            dayNames.Add(CultureInfo.CurrentCulture.DateTimeFormat.DayNames[i % 7]);
+        }
+    }
+
+    private async Task PreviousMonth()
+    {
+        currentMonth = currentMonth.AddMonths(-1);
+        await GenerateCalendar();
+    }
+
+    private async Task NextMonth()
+    {
+        currentMonth = currentMonth.AddMonths(1);
+        await GenerateCalendar();
+    }
+
+    private async Task GoToToday()
+    {
+        currentMonth = DateTime.Today;
+        await GenerateCalendar();
+    }
+
+    private void SelectDate(DateTime date)
+    {
+        selectedDate = date;
+    }
+
+    private async Task GenerateCalendar()
+    {
+        weeks.Clear();
+
+        var firstDayOfMonth = new DateTime(currentMonth.Year, currentMonth.Month, 1);
+        var lastDayOfMonth = firstDayOfMonth.AddMonths(1).AddDays(-1);
+
+        var startOfCalendar = firstDayOfMonth.AddDays(-(int)((firstDayOfMonth.DayOfWeek - DayOfWeek.Monday + 7) % 7));
+        var endOfCalendar = lastDayOfMonth.AddDays(6 - (int)((lastDayOfMonth.DayOfWeek - DayOfWeek.Monday + 7) % 7));
+
+        for (var date = startOfCalendar; date <= endOfCalendar; date = date.AddDays(7))
+        {
+            var week = new List<DateTime>();
+            for (int i = 0; i < 7; i++)
+            {
+                week.Add(date.AddDays(i));
+            }
+            weeks.Add(week);
+        }
+
+        await LoadTrainingsAsync();
+    }
+
+    private async Task LoadTrainingsAsync()
+    {
+        var query = new GetTrainingsQuery
+        {
+            UserId = _userId ?? Guid.Empty,
+            Year = currentMonth.Year,
+            Month = currentMonth.Month
+        };
+
+        var trainings = await QueryDispatcher.Dispatch<GetTrainingsQuery, List<TrainingDto>>(query, CancellationToken.None);
+
+        dayTrainings.Clear();
+
+        foreach (var training in trainings)
+        {
+            var date = training.Date.ToDateTime(TimeOnly.MinValue);
+            if (!dayTrainings.ContainsKey(date))
+                dayTrainings[date] = new();
+            dayTrainings[date].Add(training);
+        }
+
+        _trainingsLoaded = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_hasRendered && _trainingsLoaded)
+        {
+            _trainingsLoaded = false;
+            await JS.InvokeVoidAsync("bootstrapInterop.initializeTooltips");
+        }
+
+        _hasRendered = true;
+    }
+
+    private string GetCellClass(DateTime day)
+    {
+        var classes = "align-top";
+        if (selectedDate != null && day.Date == selectedDate.Value.Date)
+        {
+            classes += " selected-date";
+        }
+        return classes;
+    }
+}

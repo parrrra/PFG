@@ -1,0 +1,116 @@
+﻿@page "/"
+@inject BreadcrumbService BreadcrumbSvc
+@using Microsoft.AspNetCore.Components.Authorization
+
+@rendermode InteractiveServer
+<div class="container-fluid p-0 h-100">
+    <CascadingAuthenticationState>
+        <AuthorizeView>
+            <Authorized Context="authState">
+                <section
+                    class="hero-section authenticated-hero text-dark py-6 mb-0 d-flex align-items-center justify-content-center">
+                    <div class="container text-center">
+                        <h1 class="display-4 fw-bold mb-4" style="text-shadow: none;">Bienvenido,
+                            @authState.User.Identity?.Name</h1>
+                        <p class="lead mb-5" style="text-shadow: none;">Accede a tus entrenamientos y revisa tu
+                            progreso.</p>
+                        <div class="d-grid gap-4 d-sm-flex justify-content-sm-center">
+                            <a href="/calendar" class="btn btn-primary btn-lg px-5 py-3">Mis entrenamientos</a>
+                            <a href="/exercise-progress" class="btn btn-primary btn-lg px-5 py-3">Mi progreso</a>
+                        </div>
+                    </div>
+                </section>
+
+            </Authorized>
+            <NotAuthorized>
+                <section
+                    class="hero-section unauthenticated-hero d-flex align-items-center justify-content-center text-white py-6">
+                    <div class="container text-center">
+                        <div class="row justify-content-center">
+                            <div class="col-lg-10 col-xl-8">
+                                <h1 class="display-3 fw-bolder mb-5" style="letter-spacing:1.5px;">
+                                    <i class="bi bi-heart-pulse-fill text-info me-3"></i>GymPlanner
+                                </h1>
+                                <p class="lead mb-5 fs-5">
+                                    Tu <b>entrenador personal digital</b>. Diseña rutinas, monitoriza tu evolución y
+                                    gestiona tus metas en el gimnasio de forma <b>inteligente y sencilla</b>.
+                                </p>
+                                <div class="d-grid gap-4 d-sm-flex justify-content-sm-center mb-5">
+                                    <a href="register" class="btn btn-primary btn-lg px-5 py-3 fw-bold">
+                                        <i class="bi bi-person-plus me-2"></i>Registrarse
+                                    </a>
+                                </div>
+                                <div class="mt-4">
+                                    <small class="text-white-50">
+                                        ¿Ya tienes cuenta? <a href="login"
+                                            class="link-light fw-semibold text-decoration-underline">Iniciar Sesión</a>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section id="features" class="py-6 bg-light text-dark">
+                    <div class="container">
+                        <div class="row text-center mb-6">
+                            <div class="col-lg-8 mx-auto">
+                                <h2 class="fw-bolder display-6 mb-4">Funcionalidades de GymPlanner</h2>
+                                <p class="lead text-muted mt-3 mb-0">Gestiona tus entrenamientos y sigue tu progreso de
+                                    forma
+                                    organizada.</p>
+                            </div>
+                        </div>
+                        <div class="row g-5 justify-content-center">
+                            <div class="col-md-6 col-lg-4">
+                                <div
+                                    class="feature-card p-5 h-100 rounded-4 shadow-hover bg-white border border-light-subtle">
+                                    <div class="icon-circle bg-primary-subtle text-primary mb-4">
+                                        <i class="bi bi-calendar-check-fill display-6"></i>
+                                    </div>
+                                    <h4 class="fw-bold mb-4">Gestión de Rutinas</h4>
+                                    <p class="text-secondary">Crea rutinas personalizadas por días, grupos musculares y
+                                        tipos de
+                                        entrenamiento.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <div
+                                    class="feature-card p-5 h-100 rounded-4 shadow-hover bg-white border border-light-subtle">
+                                    <div class="icon-circle bg-success-subtle text-success mb-4">
+                                        <i class="bi bi-graph-up-arrow display-6"></i>
+                                    </div>
+                                    <h4 class="fw-bold mb-4">Seguimiento de Progreso</h4>
+                                    <p class="text-secondary">Registra tus entrenamientos, consulta estadísticas y
+                                        visualiza
+                                        tu
+                                        evolución con gráficos.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <div
+                                    class="feature-card p-5 h-100 rounded-4 shadow-hover bg-white border border-light-subtle">
+                                    <div class="icon-circle bg-warning-subtle text-warning mb-4">
+                                        <i class="bi bi-award-fill display-6"></i>
+                                    </div>
+                                    <h4 class="fw-bold mb-4">Hitos y Notificaciones</h4>
+                                    <p class="text-secondary">Recibe notificaciones sobre avances y hitos importantes.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </NotAuthorized>
+        </AuthorizeView>
+    </CascadingAuthenticationState>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        BreadcrumbSvc.SetBreadcrumbs(new()
+{
+new("Inicio", "/"),
+});
+    }
+}

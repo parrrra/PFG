@@ -1,0 +1,60 @@
+    .selected-date {
+        background-color: #cff4fc !important;
+        color: black !important;
+    }
+
+    .today-date {
+        display: inline-block;
+        width: 28px;
+        height: 28px;
+        line-height: 28px;
+        text-align: center;
+        border-radius: 50%;
+        background-color: black;
+        color: white;
+        font-weight: bold;
+    }
+
+    @media (max-width: 768px) {
+        table.calendar-table thead {
+            display: none;
+        }
+
+        table.calendar-table,
+        table.calendar-table tbody,
+        table.calendar-table tr,
+        table.calendar-table td {
+            display: block;
+            width: 100%;
+        }
+
+        table.calendar-table td {
+            border-bottom: 1px solid #adb1b4;
+            position: relative;
+            padding-left: 1.5rem;
+        }
+
+        table.calendar-table td::before {
+            content: attr(data-label);
+            position: absolute;
+            left: 0.5rem;
+            top: 0.5rem;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .today-date {
+            margin-left: auto;
+            margin-right: 0;
+        }
+
+        .day-number {
+            margin: 15px;
+        }
+    }
+
+    .tooltip.text-start-tooltip .tooltip-inner {
+        text-align: left !important;
+        max-width: 400px;
+    }

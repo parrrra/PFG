@@ -1,0 +1,32 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Run Blazor con Hot Reload",
+        "type": "process",
+        "command": "dotnet",
+        "args": [
+          "watch",
+          "--project",
+          "GymPlanner.Presentation",
+          "run"
+        ],
+        "problemMatcher": "$msCompile",
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        }
+      },
+        {
+      "label": "build GymPlanner",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/GymPlanner.Presentation"
+      ],
+      "problemMatcher": "$msCompile"
+    }
+    ]
+  }
+  

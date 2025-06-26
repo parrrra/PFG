@@ -1,0 +1,40 @@
+﻿@inherits LayoutComponentBase
+@inject BreadcrumbService BreadcrumbSvc
+@inject AuthenticationStateProvider AuthProvider
+@using Microsoft.AspNetCore.Components.Authorization
+
+@code {
+    private bool isAuthenticated;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+    }
+}
+
+<div class="page @(isAuthenticated ? "" : "no-sidebar")">
+    <AuthorizeView>
+        <Authorized>
+            <NavMenu />
+        </Authorized>
+    </AuthorizeView>
+
+    <main class="main-container">
+        <AuthorizeView>
+            <Authorized>
+                <header class="main-header px-4 py-3 border-bottom bg-white">
+                    <Breadcrumb />
+                </header>
+                <article class="content p-2">
+                    @Body
+                </article>
+            </Authorized>
+            <NotAuthorized>
+                <article class="content">
+                    @Body
+                </article>
+            </NotAuthorized>
+        </AuthorizeView>
+    </main>
+</div>

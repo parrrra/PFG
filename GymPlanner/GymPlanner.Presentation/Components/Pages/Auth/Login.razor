@@ -1,0 +1,73 @@
+﻿@page "/login"
+@using GymPlanner.Presentation.Components.Layout
+@inject ICommandDispatcher CommandDispatcher
+@inject NavigationManager Nav
+@layout LoginRegisterLayout
+
+<PageTitle>Iniciar Sesión</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-7">
+            <div class="card shadow-lg p-4 rounded">
+                <div class="card-body">
+                    <h3 class="card-title text-center mb-4">Iniciar sesión</h3>
+
+                    <EditForm Model="@Form" OnValidSubmit="@HandleLogin" FormName="loginForm">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="alert alert-danger ps-5 mb-4" />
+
+                        <div class="mb-3">
+                            <label class="form-label">Email o Usuario</label>
+                            <InputText @bind-Value="Form!.UserOrEmail" class="form-control" />
+                            <ValidationMessage For="@(() => Form!.UserOrEmail)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Contraseña</label>
+                            <InputText @bind-Value="Form!.Password" type="password" class="form-control" />
+                            <ValidationMessage For="@(() => Form!.Password)" />
+                        </div>
+
+                        <div class="d-flex justify-content-center mt-4">
+                            <button class=" btn btn-primary" type="submit">Iniciar sesión</button>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(error))
+                        {
+                            <p class="text-danger text-center mt-3">@error</p>
+                        }
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    public LoginUserViewModel Form { get; set; } = new();
+
+    private string? error;
+
+    protected override void OnInitialized()
+    {
+
+    }
+
+    private async Task HandleLogin()
+    {
+        var command = new LoginUserCommand
+        {
+            UserOrEmail = Form.UserOrEmail,
+            Password = Form.Password
+        };
+
+        var success = await CommandDispatcher.Dispatch<LoginUserCommand, bool>(command, CancellationToken.None);
+
+        if (success)
+            Nav.NavigateTo("/");
+        else
+            error = "Credenciales incorrectas.";
+    }
+}

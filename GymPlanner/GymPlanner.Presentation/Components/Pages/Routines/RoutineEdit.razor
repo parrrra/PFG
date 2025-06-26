@@ -1,0 +1,299 @@
+@page "/routines/add"
+@page "/routines/edit/{id:guid}"
+@attribute [Authorize(Roles = $"{GymPlanner.Common.Constants.Roles.Admin},{GymPlanner.Common.Constants.Roles.User}")]
+@rendermode InteractiveServer
+
+@using GymPlanner.Application.Routines.Commands.CreateRoutine
+@using GymPlanner.Application.Routines.Commands.UpdateRoutine
+@using GymPlanner.Application.Routines.Queries.GetRoutine
+@using GymPlanner.Presentation.ViewModels.RoutineViewModels
+@using GymPlanner.Presentation.ViewModels.TrainingTemplateViewModels
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IQueryDispatcher QueryDispatcher
+@inject ICommandDispatcher CommandDispatcher
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject BreadcrumbService BreadcrumbSvc
+
+<PageTitle>@(id.HasValue ? "Editar Rutina" : "Nueva Rutina")</PageTitle>
+
+<div class="page-edit-grid-container">
+    <main class="page-content">
+        @if (Form is null)
+        {
+            <div class="d-flex justify-content-center py-5">
+                <div class="spinner-border text-primary"></div>
+            </div>
+        }
+        else
+        {
+            <EditForm Model="Form" OnValidSubmit="SaveRoutine" Id="editRoutineForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="alert alert-danger ps-5" />
+
+                <div class="card shadow-lg border-0 rounded-4 mb-4">
+                    <div class="card-header bg-primary text-white rounded-top-4 py-3">
+                        <h4 class="mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            @(id.HasValue ? "Editar Rutina" : "Nueva Rutina")
+                        </h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-dark">Nombre de la rutina</label>
+                            <InputText class="form-control form-control-lg" @bind-Value="Form.Name" autocomplete="off" />
+                            <ValidationMessage For="@(() => Form.Name)" class="text-danger mt-1" />
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-dark">Descripción (opcional)</label>
+                            <InputTextArea class="form-control" @bind-Value="Form.Description" rows="2" />
+                            <ValidationMessage For="@(() => Form.Description)" class="text-danger mt-1" />
+                        </div>
+                    </div>
+                </div>
+
+                <h5 class="mb-3 text-primary fw-bold text-center">
+                    <i class="bi bi-calendar3-week me-2"></i>
+                    Días de la rutina
+                </h5>
+                <p class="text-muted text-center mb-3">
+                    Cada día puede tener varias plantillas de entrenamiento. Puedes dejar días vacíos.
+                </p>
+
+                <div class="row row-cols-xxl-5 row-cols-1 g-3">
+                    @for (int i = 1; i <= 7; i++)
+                    {
+                        var day = Form.Days.First(d => d.DayOfWeek == i);
+                        <div class="col">
+                            <div class="card mb-4 border-0 shadow-sm rounded-3">
+                                <div class="card-body p-3">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="fw-bold text-dark">
+                                            <i class="bi bi-calendar-event me-2"></i>
+                                            @DayNames[i - 1]
+                                        </span>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold text-muted">Plantillas de
+                                            entrenamiento</label>
+                                        @if (!day.Trainings.Any())
+                                        {
+                                            <div class="alert alert-info small py-2 mb-2">No hay plantillas asignadas.</div>
+                                        }
+                                        else
+                                        {
+                                            <ul class="list-group mb-2">
+                                                @for (int idx = 0; idx < day.Trainings.Count; idx++)
+                                                {
+                                                    var template = day.Trainings[idx];
+                                                    <li class="list-group-item d-flex align-items-center justify-content-between">
+                                                        <span>
+                                                            <i class="bi bi-bar-chart-steps me-2"></i>
+                                                            @template.Name
+                                                        </span>
+                                                        <button type="button" class="btn btn-danger btn-sm" title="Quitar plantilla"
+                                                            @onclick="() => RemoveTemplateFromDay(day, template)">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                        <div class="input-group mb-2">
+                                            <InputSelect class="form-select" @bind-Value="day.NewTemplateId">
+                                                <option value="">-- Añadir plantilla --</option>
+                                                @foreach (var tpl in TrainingTemplates)
+                                                {
+                                                    if (!day.Trainings.Any(t => t.Id == tpl.Id))
+                                                    {
+                                                        <option value="@tpl.Id">@tpl.Name</option>
+                                                    }
+                                                }
+                                            </InputSelect>
+                                            <button type="button" class="btn btn-success"
+                                                @onclick="() => AddTemplateToDay(day)">
+                                                <i class="bi bi-plus-circle me-1"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </EditForm>
+        }
+    </main>
+
+    <footer class="page-footer">
+        @if (Form is not null)
+        {
+            <div class="d-flex justify-content-end gap-3">
+                <button class="btn btn-secondary" type="button" @onclick="Cancel">
+                    <i class="bi bi-x-lg me-2"></i> Cancelar
+                </button>
+                <button class="btn btn-primary" type="submit" form="editRoutineForm">
+                    <i class="bi bi-check-lg me-2"></i> Guardar
+                </button>
+            </div>
+        }
+    </footer>
+</div>
+
+
+@code {
+    [Parameter] public Guid? id { get; set; }
+
+    [SupplyParameterFromForm]
+    public RoutineViewModel? Form { get; set; }
+    private List<TrainingTemplateViewModel> TrainingTemplates = [];
+    private Guid? _userId;
+    private List<string> DayNames = new();
+
+    private void SetDayNamesStartingMonday()
+    {
+        for (int i = 1; i <= 7; i++)
+        {
+            DayNames.Add(CultureInfo.CurrentCulture.DateTimeFormat.DayNames[i % 7]);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        BreadcrumbSvc.SetBreadcrumbs(new List<BreadcrumbItem>
+{
+new("Inicio", "/"),
+new("Rutinas", "/routines"),
+new(id.HasValue ? "Editar Rutina" : "Nueva Rutina", null)
+});
+
+        SetDayNamesStartingMonday();
+        await GetUserIdAsync();
+        await LoadTrainingTemplates();
+
+        if (id.HasValue && id.Value != Guid.Empty)
+        {
+            var query = new GetRoutineQuery { Id = id.Value };
+            var dto = await QueryDispatcher.Dispatch<GetRoutineQuery, RoutineDto?>(query, CancellationToken.None);
+
+            if (dto is null)
+            {
+                Navigation.NavigateTo("/routines");
+                return;
+            }
+
+            var daysList = Enumerable.Range(1, 7).Select(i =>
+            {
+                var dayDto = dto.Days.FirstOrDefault(d => d.DayOfWeek == i);
+                return new RoutineDayViewModel
+                {
+                    Id = dayDto?.Id ?? Guid.Empty,
+                    DayOfWeek = i,
+                    Trainings = dayDto?.TrainingTemplates
+    .Select(x => TrainingTemplates.FirstOrDefault(tpl => tpl.Id == x.Id))
+    .Where(x => x != null)
+    .Cast<TrainingTemplateViewModel>()
+    .ToList() ?? new List<TrainingTemplateViewModel>(),
+                    NewTemplateId = null
+                };
+            }).ToList();
+
+            Form = new RoutineViewModel
+            {
+                Id = dto.Id,
+                Name = dto.Name,
+                Description = dto.Description,
+                Days = daysList
+            };
+        }
+        else
+        {
+            Form = new RoutineViewModel
+            {
+                Days = Enumerable.Range(1, 7).Select(i => new RoutineDayViewModel
+                {
+                    DayOfWeek = i,
+                    Trainings = new List<TrainingTemplateViewModel>(),
+                    NewTemplateId = null
+                }).ToList()
+            };
+        }
+    }
+
+    private async Task GetUserIdAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _userId = Guid.TryParse(user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) ? id :
+        null;
+    }
+
+    private async Task LoadTrainingTemplates()
+    {
+        var result = await QueryDispatcher.Dispatch<GetTrainingTemplatesQuery, PaginatedResult<TrainingTemplateDto>>(
+        new GetTrainingTemplatesQuery { PageNumber = 1, PageSize = 100, UserId = _userId }, CancellationToken.None);
+        TrainingTemplates = result.Items.Select(TrainingTemplateMappings.ToViewModel).ToList();
+    }
+
+    private void AddTemplateToDay(RoutineDayViewModel day)
+    {
+        if (day.NewTemplateId.HasValue)
+        {
+            var tpl = TrainingTemplates.FirstOrDefault(x => x.Id == day.NewTemplateId.Value);
+            if (tpl is not null && !day.Trainings.Any(x => x.Id == tpl.Id))
+            {
+                day.Trainings.Add(tpl);
+            }
+            day.NewTemplateId = null;
+            StateHasChanged();
+        }
+    }
+
+    private void RemoveTemplateFromDay(RoutineDayViewModel day, TrainingTemplateViewModel tpl)
+    {
+        day.Trainings.Remove(tpl);
+        StateHasChanged();
+    }
+
+    private async Task SaveRoutine()
+    {
+        if (Form is null) return;
+
+        if (id.HasValue && id.Value != Guid.Empty)
+        {
+            var command = new UpdateRoutineCommand
+            {
+                Id = id.Value,
+                Name = Form.Name,
+                Description = Form.Description,
+                UserId = _userId ?? Guid.Empty,
+                Days = Form.Days.Select(d => new UpdateRoutineDayModel
+                {
+                    Id = d.Id,
+                    DayOfWeek = d.DayOfWeek,
+                    TrainingTemplateIds = d.Trainings.Select(t => t.Id).ToList()
+                }).ToList()
+            };
+            await CommandDispatcher.Dispatch<UpdateRoutineCommand, bool>(command, CancellationToken.None);
+        }
+        else
+        {
+            var command = new CreateRoutineCommand
+            {
+                Name = Form.Name,
+                Description = Form.Description,
+                UserId = _userId ?? Guid.Empty,
+                Days = Form.Days.Select(d => new CreateRoutineDayModel
+                {
+                    DayOfWeek = d.DayOfWeek,
+                    TrainingTemplateIds = d.Trainings.Select(t => t.Id).ToList()
+                }).ToList()
+            };
+            await CommandDispatcher.Dispatch<CreateRoutineCommand, Guid>(command, CancellationToken.None);
+        }
+
+        Navigation.NavigateTo("/routines");
+    }
+
+    private void Cancel() => Navigation.NavigateTo("/routines");
+}

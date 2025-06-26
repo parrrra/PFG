@@ -1,0 +1,51 @@
+.top-bar { height: 3.5rem; }
+
+.offcanvas { width: 20rem; }
+
+@media (max-width: 767.98px) {
+    .offcanvas {
+        width: 100% !important;
+    }
+}
+
+
+@media (min-width: 768px) {
+    .offcanvas-start {
+        position: static;
+        transform: none !important;
+        visibility: visible !important;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+}
+
+.offcanvas-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.brand {
+    border-bottom: 1px solid rgba(255,255,255,.1);
+}
+
+
+.bottom-panel {
+    border-top: 1px solid rgba(255,255,255,.1);
+}
+
+.bottom-panel .btn {
+    font-size: .875rem;
+}
+
+
+@media (max-width: 767.98px) {
+    .sidebar .btn-close {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        filter: invert(1);
+        z-index: 1050;
+    }
+}

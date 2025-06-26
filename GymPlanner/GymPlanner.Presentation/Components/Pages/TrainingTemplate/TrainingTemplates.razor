@@ -1,0 +1,272 @@
+@page "/trainingtemplates"
+@attribute [Authorize(Roles = $"{GymPlanner.Common.Constants.Roles.Admin},{GymPlanner.Common.Constants.Roles.User}")]
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IQueryDispatcher QueryDispatcher
+@inject ICommandDispatcher CommandDispatcher
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+@inject BreadcrumbService BreadcrumbSvc
+
+<PageTitle>Mis Plantillas de Entrenamiento</PageTitle>
+
+<div class="page-grid-container">
+    <header class="page-header">
+        <div class="text-center mb-3">
+            <h1 class="display-6 fw-bold text-primary mb-2">
+                <i class="bi bi-bar-chart-steps me-2"></i>Mis Plantillas de Entrenamiento
+            </h1>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="flex-grow-1" style="min-width:260px;">
+                <InputText class="form-control" placeholder="Buscar por nombre..." @bind-Value="_filter"
+                    @oninput="OnFilterTextChanged" />
+            </div>
+            <button class="btn btn-secondary" @onclick="ClearFilters" type="button" title="Limpiar filtros">
+                <i class="bi bi-x-circle"></i>
+            </button>
+            <button class="btn btn-primary d-flex align-items-center gap-2" @onclick="CreateNew">
+                <i class="bi bi-plus-circle"></i>
+                <span>Nueva plantilla</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="page-content">
+        @if (_isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        }
+        else if (!Templates.Any())
+        {
+            <div class="alert alert-info text-center py-5 rounded-4 shadow-lg" role="alert">
+                <i class="bi bi-emoji-frown display-1 text-info mb-3"></i>
+                <h4 class="alert-heading text-info-emphasis">¡Aún no tienes plantillas!</h4>
+                <p class="mb-4">Crea tu primera plantilla para empezar a organizar tus entrenamientos de forma eficiente.
+                </p>
+                <hr>
+                <a href="/trainingtemplates/add" class="btn btn-primary btn-lg rounded-pill px-4 shadow-sm">
+                    <i class="bi bi-plus-circle me-2"></i>Crear plantilla
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                @foreach (var tpl in Templates)
+                {
+                    <div class="col">
+                        <div class="card h-100 shadow-sm border-0 rounded-4 training-card-modern">
+                            <div class="card-body d-flex flex-column p-4">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h5 class="card-title text-dark fw-bold mb-1">@tpl.Name</h5>
+                                        <small class="text-muted d-flex align-items-center">
+                                            <i class="bi bi-list-check me-2"></i>
+                                            <span>
+                                                @tpl.Exercises.Count
+                                                @(tpl.Exercises.Count == 1 ? "ejercicio" : "ejercicios")
+                                            </span>
+                                        </small>
+                                    </div>
+                                    <div class="d-flex flex-row align-items-end gap-2">
+                                        <a class="btn btn-primary btn-sm rounded-pill py-1 px-3 edit-button"
+                                            href="/trainingtemplates/edit/@tpl.Id" title="Editar plantilla">
+                                            <i class="bi bi-pencil-fill"></i>
+                                        </a>
+                                        <button class="btn btn-danger btn-sm rounded-pill py-1 px-3"
+                                            @onclick="() => ShowDeleteConfirmation(tpl.Id)" title="Eliminar plantilla">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(tpl.Description))
+                                {
+                                    <p class="card-text text-secondary mb-3 flex-grow-0">@tpl.Description</p>
+                                }
+                                <div class="exercise-list">
+                                    <div class="row g-2">
+                                        @foreach (var ex in tpl.Exercises.Take(3))
+                                        {
+                                            <div class="col-12">
+                                                <div class="p-3 border rounded-3 bg-light exercise-item">
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <strong class="text-dark">@ex.ExerciseName</strong>
+                                                        <span class="badge bg-secondary-subtle text-secondary rounded-pill ms-2">
+                                                            @ex.BodyPartName
+                                                        </span>
+                                                    </div>
+                                                    <div class="d-flex flex-wrap gap-3 small text-muted">
+                                                        <span><i class="bi bi-arrow-repeat me-1"></i>Series: @ex.Sets</span>
+                                                        <span><i class="bi bi-check-circle me-1"></i>Reps: @ex.Repetitions</span>
+                                                        <span><i class="bi bi-activity me-1"></i>Inicio: @ex.StartWeight kg</span>
+                                                        <span style="visibility:@(ex.TargetWeight.HasValue ? "visible" : "hidden")">
+                                                            <i class="bi bi-bullseye me-1"></i>Objetivo: @ex.TargetWeight
+                                                        </span>
+                                                        <span style="visibility:@(ex.IsKeyExercise ? "visible" : "hidden")">
+                                                            <i class="bi bi-star-fill text-warning me-1"></i>Clave
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                                @if (tpl.Exercises.Count > 3)
+                                {
+                                    <p class="text-muted small mt-auto pt-3 mb-0">
+                                        <i class="bi bi-three-dots me-1"></i>
+                                        @((tpl.Exercises.Count - 3)) ejercicios más...
+                                    </p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </main>
+
+    <footer class="page-footer">
+        <Pagination CurrentPage="CurrentPage" TotalPages="TotalPages" PageSize="PageSize" TotalCount="TotalCount"
+            OnPageChanged="LoadTemplates" OnPageSizeChanged="ChangePageSize"
+            PageSizeOptions="new int[] { 5, 10, 20, 50, 100 }" />
+    </footer>
+</div>
+
+<ConfirmationModal @ref="_deleteConfirmationModal" Message="¿Seguro que deseas eliminar esta plantilla?"
+    ConfirmText="Eliminar" ConfirmButtonClass="btn-danger" ConfirmIcon="bi bi-trash" OnConfirm="DeleteTemplate" />
+
+<style>
+    .training-card-modern {
+        overflow: hidden;
+    }
+
+    .training-card-modern:hover {
+        box-shadow: 0 1.2rem 2.5rem rgba(0, 0, 0, 0.11) !important;
+    }
+
+    .card-title {
+        color: #343a40;
+    }
+
+    .exercise-list .exercise-item {
+        background-color: #e9ecef;
+        border-color: #dee2e6;
+        transition: background-color 0.2s ease;
+    }
+
+    .exercise-list .exercise-item:hover {
+        background-color: #e2e6ea;
+    }
+
+    .exercise-item .badge {
+        font-size: 0.78em;
+        padding: 0.4em 0.8em;
+    }
+</style>
+
+@code {
+    private List<TrainingTemplateViewModel> Templates = [];
+    private string? _filter;
+    private int CurrentPage = 1;
+    private int TotalPages;
+    private int TotalCount = 0;
+    private int PageSize = 10;
+    private bool _isLoading = true;
+    private Guid _selectedTemplateId;
+    private ConfirmationModal _deleteConfirmationModal = new();
+
+    private Guid? _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        BreadcrumbSvc.SetBreadcrumbs(new List<BreadcrumbItem>
+{
+new("Inicio", "/"),
+new("Plantillas de Entrenamiento", "/trainingtemplates")
+});
+        await GetUserIdAsync();
+        await LoadTemplates(1);
+    }
+
+    private async Task GetUserIdAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var idString = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        _userId = Guid.TryParse(idString, out var id) ? id : null;
+    }
+
+    private async Task OnFilterTextChanged(ChangeEventArgs e)
+    {
+        _filter = e.Value?.ToString();
+        CurrentPage = 1;
+        await LoadTemplates(CurrentPage);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ChangePageSize(int newSize)
+    {
+        PageSize = newSize;
+        CurrentPage = 1;
+        await LoadTemplates(CurrentPage);
+    }
+
+    private async Task LoadTemplates(int page)
+    {
+        _isLoading = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            CurrentPage = page;
+            var query = new GetTrainingTemplatesQuery
+            {
+                PageNumber = CurrentPage,
+                PageSize = PageSize,
+                Filter = _filter,
+                UserId = _userId
+            };
+            var result = await QueryDispatcher.Dispatch<GetTrainingTemplatesQuery, PaginatedResult<TrainingTemplateDto>>(query,
+            CancellationToken.None);
+            Templates = result.Items.Select(TrainingTemplateMappings.ToViewModel).ToList();
+            TotalCount = result.TotalCount;
+            TotalPages = (int)Math.Ceiling((double)result.TotalCount / PageSize);
+        }
+        finally
+        {
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void Edit(Guid id) => Nav.NavigateTo($"/trainingtemplates/edit/{id}");
+    private void CreateNew() => Nav.NavigateTo("/trainingtemplates/add");
+
+    private async Task ShowDeleteConfirmation(Guid id)
+    {
+        _selectedTemplateId = id;
+        await _deleteConfirmationModal.ShowAsync();
+    }
+
+    private async Task DeleteTemplate()
+    {
+        var command = new DeleteTrainingTemplateCommand { Id = _selectedTemplateId };
+        await CommandDispatcher.Dispatch<DeleteTrainingTemplateCommand, bool>(command, CancellationToken.None);
+        if (Templates.Count == 1 && CurrentPage > 1) CurrentPage--;
+        await LoadTemplates(CurrentPage);
+    }
+
+    private async Task ClearFilters()
+    {
+        _filter = null;
+        CurrentPage = 1;
+        await LoadTemplates(CurrentPage);
+        await InvokeAsync(StateHasChanged);
+    }
+}

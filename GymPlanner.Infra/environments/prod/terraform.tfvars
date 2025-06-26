@@ -1,0 +1,8 @@
+location              = "West Europe"
+resource_group_name   = "rg-gymplanner-prod-westeu-01"
+app_service_plan_name = "plan-gymplanner-prod-westeu-01"
+web_app_name          = "webapp-gymplanner-prod-westeu-01"
+dotnet_version        = "8.0"
+sql_location          = "France Central"
+sql_server_name       = "sql-gymplanner-prod-francecentral-01"
+sql_database_name     = "db-gymplanner-prod-francecentral-01"

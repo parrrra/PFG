@@ -1,0 +1,419 @@
+@page "/trainingtemplates/add"
+@page "/trainingtemplates/edit/{id:guid}"
+@attribute [Authorize(Roles = $"{GymPlanner.Common.Constants.Roles.Admin},{GymPlanner.Common.Constants.Roles.User}")]
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IQueryDispatcher QueryDispatcher
+@inject ICommandDispatcher CommandDispatcher
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+@inject BreadcrumbService BreadcrumbSvc
+
+<PageTitle>@(id.HasValue ? "Editar Plantilla" : "Nueva Plantilla")</PageTitle>
+
+<div class="page-edit-grid-container">
+    <main class="page-content">
+        @if (Form is null)
+        {
+            <div class="d-flex justify-content-center py-5">
+                <div class="spinner-border text-primary"></div>
+            </div>
+        }
+        else
+        {
+            <EditForm Model="Form" OnValidSubmit="SaveTemplate" Id="editTemplateForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="alert alert-danger ps-5" />
+                <InputCollectionValidator @ref="collectionValidator" Items="Form.Exercises.Cast<object>().ToList()" />
+
+                <div class="card shadow-lg border-0 rounded-4 mb-4">
+                    <div class="card-header bg-primary text-white rounded-top-4 py-3">
+                        <h4 class="mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            @(id.HasValue ? "Editar Plantilla" : "Nueva Plantilla")
+                        </h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-dark">Nombre de la plantilla</label>
+                            <InputText class="form-control form-control-lg" @bind-Value="Form.Name" autocomplete="off" />
+                            <ValidationMessage For="@(() => Form.Name)" class="text-danger mt-1" />
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-dark">Descripción (opcional)</label>
+                            <InputTextArea class="form-control" @bind-Value="Form.Description" rows="2" />
+                            <ValidationMessage For="@(() => Form.Description)" class="text-danger mt-1" />
+                        </div>
+                    </div>
+                </div>
+
+                <h5 class="mb-3 text-primary fw-bold text-center">
+                    <i class="bi bi-grid-fill me-2"></i>
+                    Ejercicios de la plantilla
+                </h5>
+                <p class="text-muted text-center mb-3">
+                    Organiza los ejercicios de tu rutina.
+                    <span class="text-info">
+                        <i class="bi bi-arrow-down-up me-1"></i>Arrastra los ejercicios para cambiar el orden.
+                    </span>
+                </p>
+                @if (!Form.Exercises.Any())
+                {
+                    <div class="alert alert-warning text-center py-4 rounded-3" role="alert">
+                        <i class="bi bi-exclamation-triangle display-4 mb-3"></i>
+                        <h5 class="alert-heading text-warning-emphasis">¡No hay ejercicios!</h5>
+                        <p class="mb-0">Añade ejercicios a la rutina.</p>
+                    </div>
+                }
+                else
+                {
+                    <div id="exercises-sortable-list">
+                        @foreach (var ex in Form.Exercises)
+                        {
+                            <div class="card mb-3 border-0 shadow-sm rounded-3 exercise-card-item
+                                                                                                                                                                                                                                                                                         @(DraggedExercise?.TempId == ex.TempId ? "dragging" : "")
+                                                                                                                                                                                                                                                                                         @(DropTargetExercise?.TempId == ex.TempId ? "drop-target" : "")"
+                                data-exercise-id="@ex.TempId" @key="ex.TempId" @ondragover:preventDefault="true"
+                                @ondragover="@((e) => HandleDragOver(e, ex))" @ondrop="@(() => HandleDrop(ex))"
+                                @ondragenter:preventDefault="true" @ondragenter="@(() => HandleDragEnter(ex))"
+                                @ondragleave="@(() => HandleDragLeave(ex))" @ondragend="@HandleDragEnd">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="text-dark fw-bold drag-handle-area handle" draggable="true"
+                                            @ondragstart="@(() => HandleDragStart(ex))">
+                                            <i class="bi bi-grip-vertical me-2"></i>
+                                            Ejercicio #@ex.InitialOrder.
+                                        </span>
+                                        <button type="button" class="btn btn-danger btn-sm px-2"
+                                            @onclick="() => RemoveExercise(ex)">
+                                            <i class="bi bi-trash-fill"></i>
+                                        </button>
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-6 col-md-1">
+                                            <label class="form-label small fw-semibold text-muted">Clave</label>
+                                            <div>
+                                                <button type="button" class="btn btn-link p-0" style="font-size:1.6rem;"
+                                                    @onclick="@(() => ex.IsKeyExercise = !ex.IsKeyExercise)"
+                                                    title="Marcar como ejercicio clave">
+                                                    <i
+                                                        class="bi @(ex.IsKeyExercise ? "bi-star-fill text-warning" : "bi-star text-secondary")"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-5 col-6">
+                                            <label class="form-label small fw-semibold text-muted">Ejercicio</label>
+                                            <InputSelect class="form-select" @bind-Value="ex.ExerciseId">
+                                                <option value="" selected>-- Selecciona --</option>
+                                                @foreach (var option in Exercises)
+                                                {
+                                                    <option value="@option.Id">@option.Name</option>
+                                                }
+                                            </InputSelect>
+                                            <ValidationMessage For="@(() => ex.ExerciseId)" class="text-danger mt-1" />
+                                        </div>
+                                        <div class="col-6 col-md-2">
+                                            <label class="form-label small fw-semibold text-muted">Series</label>
+                                            <InputNumber class="form-control" @bind-Value="ex.Sets" />
+                                            <ValidationMessage For="@(() => ex.Sets)" class="text-danger mt-1" />
+                                        </div>
+                                        <div class="col-6 col-md-2">
+                                            <label class="form-label small fw-semibold text-muted">Repetitions</label>
+                                            <InputNumber class="form-control" @bind-Value="ex.Repetitions" />
+                                            <ValidationMessage For="@(() => ex.Repetitions)" class="text-danger mt-1" />
+                                        </div>
+                                        <div class="col-6 col-md-1">
+                                            <label class="form-label small fw-semibold text-muted">Peso inicial</label>
+                                            <InputNumber class="form-control" @bind-Value="ex.StartWeight" />
+                                            <ValidationMessage For="@(() => ex.StartWeight)" class="text-danger mt-1" />
+                                        </div>
+
+                                        @if (ex.IsKeyExercise)
+                                        {
+                                            <div class="col-6 col-md-1">
+                                                <label class="form-label small fw-semibold text-muted">Peso objetivo</label>
+                                                <InputNumber class="form-control" @bind-Value="ex.TargetWeight" />
+                                                <ValidationMessage For="@(() => ex.TargetWeight)" class="text-danger mt-1" />
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                <div class="mb-4 text-center">
+                    <button type="button" class="btn btn-success" @onclick="AddExercise">
+                        <i class="bi bi-plus-circle-fill me-2"></i>Añadir ejercicio
+                    </button>
+                </div>
+            </EditForm>
+        }
+    </main>
+
+    <footer class="page-footer">
+        @if (Form is not null)
+        {
+            <div class="d-flex justify-content-end gap-3">
+                <button class="btn btn-secondary" type="button" @onclick="Cancel">
+                    <i class="bi bi-x-lg me-2"></i> Cancelar
+                </button>
+                <button class="btn btn-primary" type="submit" form="editTemplateForm">
+                    <i class="bi bi-check-lg me-2"></i> Guardar
+                </button>
+            </div>
+        }
+    </footer>
+</div>
+
+<style>
+    .exercise-card-item {
+        border-left: 4px solid #17a2b8;
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+
+    .handle {
+        cursor: grab;
+        color: #6c757d;
+    }
+
+    .handle:hover {
+        color: #007bff;
+    }
+
+    .exercise-card-item.dragging {
+        opacity: 0.4;
+        border: 2px dashed #007bff;
+        background-color: #f8f9fa;
+        transform: scale(0.9);
+        box-shadow: 0 0 15px rgba(0, 123, 255, 0.6);
+    }
+
+    .exercise-card-item.drop-target {
+        border: 2px dashed #28a745;
+        transform: translateY(15px);
+    }
+</style>
+
+@code {
+    [Parameter] public Guid? id { get; set; }
+
+    [SupplyParameterFromForm]
+    public TrainingTemplateViewModel Form { get; set; } = new();
+    private List<ExerciseDto> Exercises = [];
+    private List<BodyPartDto> BodyParts = [];
+    private Guid? _userId;
+    private InputCollectionValidator collectionValidator = default!;
+
+    private TrainingTemplateExerciseViewModel? DraggedExercise;
+    private TrainingTemplateExerciseViewModel? DropTargetExercise;
+
+
+    private void RemoveExercise(TrainingTemplateExerciseViewModel ex)
+    {
+        Form!.Exercises.Remove(ex);
+        for (int i = 0; i < Form.Exercises.Count; i++)
+        {
+            Form.Exercises[i].Order = i + 1;
+        }
+        collectionValidator.ClearMessagesForItem(ex);
+        StateHasChanged();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        BreadcrumbSvc.SetBreadcrumbs(new List<BreadcrumbItem>
+{
+new("Inicio", "/"),
+new("Plantillas de entrenamiento", "/routines"),
+new(id.HasValue ? "Editar plantilla de entrenamiento" : "Nueva plantilla de entrenamiento", null)
+});
+
+        await GetUserIdAsync();
+        await LoadExercises();
+        await LoadBodyParts();
+
+        if (id.HasValue && id.Value != Guid.Empty)
+        {
+            var query = new GetTrainingTemplateQuery { Id = id.Value };
+            var dto = await QueryDispatcher.Dispatch<GetTrainingTemplateQuery, TrainingTemplateDto?>(query, CancellationToken.None);
+
+            if (dto is null)
+            {
+                Navigation.NavigateTo("/trainingtemplates");
+                return;
+            }
+
+            dto.Exercises = dto.Exercises.OrderBy(e => e.Order).ToList();
+
+            Form = TrainingTemplateMappings.ToViewModel(dto);
+
+            for (int i = 0; i < Form.Exercises.Count; i++)
+            {
+                Form.Exercises[i].InitialOrder = i + 1;
+            }
+
+            foreach (var ex in Form.Exercises)
+                ex.TempId = Guid.NewGuid().ToString();
+        }
+        else
+        {
+            Form = new TrainingTemplateViewModel();
+        }
+    }
+
+    private void HandleDragStart(TrainingTemplateExerciseViewModel exercise)
+    {
+        DraggedExercise = exercise;
+        StateHasChanged();
+    }
+
+    private void HandleDragOver(DragEventArgs e, TrainingTemplateExerciseViewModel exercise)
+    {
+        e.DataTransfer.DropEffect = "move";
+        if (DraggedExercise != null && DraggedExercise != exercise)
+        {
+            DropTargetExercise = exercise;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleDragEnter(TrainingTemplateExerciseViewModel exercise)
+    {
+        if (DraggedExercise != null && DraggedExercise != exercise)
+        {
+            DropTargetExercise = exercise;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleDragLeave(TrainingTemplateExerciseViewModel exercise)
+    {
+        if (DraggedExercise != null && DropTargetExercise == exercise)
+        {
+            DropTargetExercise = null;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleDrop(TrainingTemplateExerciseViewModel dropTarget)
+    {
+        if (DraggedExercise == null || DraggedExercise == dropTarget)
+        {
+            DraggedExercise = null;
+            DropTargetExercise = null;
+            return;
+        }
+
+        var oldIndex = Form!.Exercises.IndexOf(DraggedExercise);
+        var newIndex = Form.Exercises.IndexOf(dropTarget);
+
+        Form.Exercises.Remove(DraggedExercise);
+
+        Form.Exercises.Insert(newIndex, DraggedExercise);
+
+        for (int i = 0; i < Form.Exercises.Count; i++)
+        {
+            Form.Exercises[i].Order = i + 1;
+        }
+
+        DraggedExercise = null;
+        DropTargetExercise = null;
+        StateHasChanged();
+    }
+
+    private void HandleDragEnd()
+    {
+        DraggedExercise = null;
+        DropTargetExercise = null;
+        StateHasChanged();
+    }
+
+
+    private async Task GetUserIdAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _userId = new Guid(user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? Guid.Empty.ToString());
+    }
+
+    private async Task LoadExercises()
+    {
+        var result = await QueryDispatcher.Dispatch<GetExercisesQuery, PaginatedResult<ExerciseDto>>(
+        new GetExercisesQuery { PageNumber = 1, PageSize = 1000 }, CancellationToken.None);
+        Exercises = result.Items;
+    }
+
+    private async Task LoadBodyParts()
+    {
+        var result = await QueryDispatcher.Dispatch<GetBodyPartsQuery, PaginatedResult<BodyPartDto>>(
+        new GetBodyPartsQuery { PageNumber = 1, PageSize = 100 }, CancellationToken.None);
+        BodyParts = result.Items;
+    }
+
+    private void AddExercise()
+    {
+        Form!.Exercises.Add(new TrainingTemplateExerciseViewModel
+        {
+            TempId = Guid.NewGuid().ToString(),
+            Order = (Form.Exercises.Any() ? Form.Exercises.Max(e => e.Order) + 1 : 1),
+            Sets = 3,
+            Repetitions = 10,
+            InitialOrder = Form.Exercises.Count + 1,
+        });
+        StateHasChanged();
+    }
+
+    private async Task SaveTemplate()
+    {
+        if (Form is null) return;
+
+        if (id.HasValue && id.Value != Guid.Empty)
+        {
+            var command = new UpdateTrainingTemplateCommand
+            {
+                Id = id.Value,
+                Name = Form.Name,
+                Description = Form.Description,
+                UserId = _userId ?? Guid.Empty,
+                Exercises = Form.Exercises.Select(x => new UpdateTrainingTemplateExerciseModel
+                {
+                    Id = x.Id,
+                    ExerciseId = x.ExerciseId,
+                    Sets = x.Sets,
+                    Repetitions = x.Repetitions,
+                    StartWeight = x.StartWeight,
+                    TargetWeight = x.IsKeyExercise ? x.TargetWeight : null,
+                    IsKeyExercise = x.IsKeyExercise,
+                    Order = x.Order
+                }).ToList()
+            };
+            await CommandDispatcher.Dispatch<UpdateTrainingTemplateCommand, bool>(command, CancellationToken.None);
+        }
+        else
+        {
+            var command = new CreateTrainingTemplateCommand
+            {
+                Name = Form.Name,
+                Description = Form.Description,
+                UserId = _userId ?? Guid.Empty,
+                Exercises = Form.Exercises.Select(x => new CreateTrainingTemplateExerciseModel
+                {
+                    ExerciseId = x.ExerciseId,
+                    Sets = x.Sets,
+                    Repetitions = x.Repetitions,
+                    StartWeight = x.StartWeight,
+                    TargetWeight = x.IsKeyExercise ? x.TargetWeight : null,
+                    IsKeyExercise = x.IsKeyExercise,
+                    Order = x.Order
+                }).ToList()
+            };
+            await CommandDispatcher.Dispatch<CreateTrainingTemplateCommand, Guid>(command, CancellationToken.None);
+        }
+        Navigation.NavigateTo("/trainingtemplates");
+    }
+
+    private void Cancel() => Navigation.NavigateTo("/trainingtemplates");
+}

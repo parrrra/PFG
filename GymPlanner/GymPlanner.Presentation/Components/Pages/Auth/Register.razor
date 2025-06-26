@@ -1,0 +1,191 @@
+﻿@page "/register"
+@rendermode InteractiveServer
+@using GymPlanner.Presentation.Components.Layout
+@using GymPlanner.Presentation.Helpers
+@layout LoginRegisterLayout
+@inject ICommandDispatcher CommandDispatcher
+@inject NavigationManager Nav
+@inject BreadcrumbService BreadcrumbSvc
+@inject IQueryDispatcher QueryDispatcher
+
+
+
+<PageTitle>Registro</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-7">
+            <div class="card shadow-lg p-4 rounded">
+                <div class="card-body">
+                    <h3 class="card-title text-center mb-4">Registro (Paso @currentStep de @totalSteps)</h3>
+
+                    <div class="progress mb-4" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar"
+                            style="width: @((currentStep * 100 / totalSteps))%;"
+                            aria-valuenow="@((currentStep * 100 / totalSteps))" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+
+                    <EditForm EditContext="@editContext" OnValidSubmit="@HandleRegister" FormName="registerForm">
+                        <ValidationSummary class="alert alert-danger ps-5 mb-4" />
+
+                        @if (currentStep == 1)
+                        {
+                            <h4>Paso 1: Información de la cuenta</h4>
+                            <hr class="mb-4" />
+                            <div class="mb-3">
+                                <label class="form-label">Usuario</label>
+                                <InputText @bind-Value="Form.UserName" class="form-control" />
+                                <ValidationMessage For="@(() => Form.UserName)" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <InputText @bind-Value="Form.Email" type="email" class="form-control" />
+                                <ValidationMessage For="@(() => Form.Email)" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Contraseña</label>
+                                <InputText @bind-Value="Form.Password" type="password" class="form-control" />
+                                <ValidationMessage For="@(() => Form.Password)" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Confirmar Contraseña</label>
+                                <InputText @bind-Value="Form.ConfirmPassword" type="password" class="form-control" />
+                                <ValidationMessage For="@(() => Form.ConfirmPassword)" />
+                            </div>
+                        }
+
+                        @if (currentStep == 2)
+                        {
+                            <h4>Paso 2: Nivel de entrenamiento</h4>
+                            <hr class="mb-4" />
+                            <div class="mb-3">
+                                <label class="form-label">Nivel de entrenamiento</label>
+                                <InputSelect @bind-Value="Form.TrainingLevelId" class="form-select">
+                                    <option value="" disabled>-- Selecciona un nivel --</option>
+                                    @foreach (var level in Form.TrainingLevels)
+                                    {
+                                        <option value="@level.Id">@level.Name</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => Form.TrainingLevelId)" />
+                            </div>
+                        }
+
+                        <div class="d-flex justify-content-between mt-4">
+                            @if (currentStep > 1)
+                            {
+                                <button type="button" class="btn btn-secondary" @onclick="PreviousStep">Anterior</button>
+                            }
+                            else
+                            {
+                                <div></div>
+                            }
+
+                            @if (currentStep < totalSteps)
+                            {
+                                <button type="button" class="btn btn-primary" @onclick="NextStep">Siguiente</button>
+                            }
+                            else
+                            {
+                                <button type="submit" class="btn btn-success">Registrarse</button>
+                            }
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(error))
+                        {
+                            <p class="text-danger text-center mt-3">@error</p>
+                        }
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@code {
+    public RegisterUserViewModel Form { get; set; } = new();
+    private int currentStep = 1;
+    private readonly int totalSteps = 2;
+    private string? error;
+    private EditContext editContext = default!;
+    private ValidationMessageStore validationStore = default!;
+    private static readonly Dictionary<int, string[]> StepProperties = new()
+    {
+        [1] = new[] { nameof(RegisterUserViewModel.UserName),
+nameof(RegisterUserViewModel.Email),nameof(RegisterUserViewModel.Password),
+nameof(RegisterUserViewModel.ConfirmPassword) },
+        [2] = new[] { nameof(RegisterUserViewModel.TrainingLevelId) }
+    };
+
+    private string[] GetStepProperties(int step) =>
+    StepProperties.TryGetValue(step, out var props) ? props : Array.Empty<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        editContext = new EditContext(Form);
+        validationStore = new ValidationMessageStore(editContext);
+
+        editContext.OnFieldChanged += (_, e) =>
+        ValidationHelper.ValidateSingleField(Form, validationStore, e.FieldIdentifier);
+
+        editContext.OnValidationStateChanged += (_, _) => StateHasChanged();
+
+        BreadcrumbSvc.SetBreadcrumbs(new()
+{
+new("Inicio", "/"),
+new("Registro", "/register")
+});
+
+        Form.TrainingLevels = await QueryDispatcher.Dispatch<GetTrainingLevelsQuery, List<TrainingLevelDto>>(new(),
+        CancellationToken.None);
+    }
+
+    private void PreviousStep()
+    {
+        if (currentStep > 1)
+        {
+            currentStep--;
+            error = null;
+            ValidationHelper.ClearValidationMessagesForStep(Form, validationStore, editContext, GetStepProperties(currentStep + 1));
+        }
+    }
+
+    private void NextStep()
+    {
+        if (ValidationHelper.ValidateProperties(Form, validationStore, editContext, GetStepProperties(currentStep)))
+        {
+            currentStep++;
+            error = null;
+        }
+        else
+        {
+            error = "Por favor, corrige los errores antes de continuar.";
+        }
+    }
+
+    private async Task HandleRegister()
+    {
+        if (!ValidationHelper.ValidateAll(Form, validationStore, editContext))
+        {
+            error = "Por favor, corrige los errores antes de registrarte.";
+            return;
+        }
+        var command = new RegisterUserCommand
+        {
+            UserName = Form.UserName!,
+            Email = Form.Email!,
+            Password = Form.Password!,
+            TrainingLevelId = Form.TrainingLevelId,
+            BaseUrl = Nav.BaseUri
+        };
+
+        var ok = await CommandDispatcher.Dispatch<RegisterUserCommand, bool>(command, CancellationToken.None);
+
+        if (ok)
+            Nav.NavigateTo("/login");
+        else
+            error = "No se pudo registrar (email duplicado o contraseña débil).";
+    }
+
+
+}

@@ -1,0 +1,43 @@
+@inject BreadcrumbService BreadcrumbSvc
+@implements IDisposable
+
+@rendermode InteractiveServer
+@inject IWebHostEnvironment Env
+
+@code {
+    private string EnvName => Env.EnvironmentName;
+}
+
+@if (BreadcrumbSvc.Breadcrumbs.Any())
+{
+    <nav class="d-flex justify-content-between align-items-center breadcrumb-nav" aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+            @foreach (var item in BreadcrumbSvc.Breadcrumbs)
+            {
+                if (item == BreadcrumbSvc.Breadcrumbs.Last())
+                {
+                    <li class="breadcrumb-item active" aria-current="page">@item.Label</li>
+                }
+                else
+                {
+                    <li class="breadcrumb-item">
+                        <a href="@item.Href">@item.Label</a>
+                    </li>
+                }
+            }
+        </ol>
+        <div class="env-badge badge bg-primary ms-3">@EnvName</div>
+    </nav>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        BreadcrumbSvc.OnChange += StateHasChanged;
+    }
+    public void Dispose()
+    {
+        BreadcrumbSvc.OnChange -= StateHasChanged;
+    }
+
+}

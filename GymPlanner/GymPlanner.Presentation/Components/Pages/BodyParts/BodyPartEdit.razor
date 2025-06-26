@@ -1,0 +1,114 @@
+@page "/admin/bodyparts/add"
+@page "/admin/bodyparts/edit/{id:guid}"
+@attribute [Authorize(Roles = GymPlanner.Common.Constants.Roles.Admin)]
+@rendermode InteractiveServer
+
+@inject IQueryDispatcher QueryDispatcher
+@inject ICommandDispatcher CommandDispatcher
+@inject BreadcrumbService BreadcrumbSvc
+@inject NavigationManager Navigation
+
+<PageTitle>@(id.HasValue ? "Editar parte del cuerpo" : "Nueva parte del cuerpo")</PageTitle>
+
+<div class="edit-grid-container">
+    <header class="edit-header">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="fs-5 fw-semibold">
+                @(id.HasValue ? "Editar parte del cuerpo" : "Nueva parte del cuerpo")
+            </span>
+            <span class="flex-grow-1"></span>
+            <button class="btn btn-secondary" @onclick="Cancel" type="button">
+                <i class="bi bi-arrow-left"></i>
+                <span class="d-none d-md-inline">Volver</span>
+            </button>
+        </div>
+    </header>
+    <main class="edit-content">
+        @if (Form is null)
+        {
+            <div class="d-flex justify-content-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        }
+        else
+        {
+            <EditForm Model="Form" OnValidSubmit="SaveBodyPart" Id="editBodyPartForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="alert alert-danger ps-5" />
+                <div class="form-group">
+                    <label class="form-label">Nombre</label>
+                    <InputText class="form-control" @bind-Value="Form.Name" autocomplete="off" />
+                    <ValidationMessage For="@(() => Form.Name)" />
+                </div>
+            </EditForm>
+
+        }
+    </main>
+    @if (Form is not null)
+    {
+        <footer class="edit-footer">
+            <button class="btn btn-secondary" type="button" @onclick="Cancel">
+                <i class="bi bi-x-lg"></i> Cancelar
+            </button>
+            <button class="btn btn-primary" type="submit" form="editBodyPartForm">
+                <i class="bi bi-check-lg"></i> Guardar
+            </button>
+        </footer>
+    }
+</div>
+
+
+
+@code {
+    [Parameter] public Guid? id { get; set; }
+
+    private BodyPartViewModel? Form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        BreadcrumbSvc.SetBreadcrumbs(new List<BreadcrumbItem>
+{
+new("Inicio", "/"),
+new("Partes del cuerpo", "/admin/bodyparts"),
+new(id.HasValue ? "Editar" : "Añadir", $"/admin/bodyparts{(id.HasValue ? $"/edit/{id}" : "/add")}")
+});
+
+        if (id.HasValue && id.Value != Guid.Empty)
+        {
+            var query = new GetBodyPartQuery { Id = id.Value };
+            var dto = await QueryDispatcher.Dispatch<GetBodyPartQuery, BodyPartDto?>(query, CancellationToken.None);
+
+            if (dto is null)
+            {
+                Navigation.NavigateTo("/admin/bodyparts");
+                return;
+            }
+            Form = BodyPartMappings.ToViewModel(dto);
+        }
+        else
+        {
+            Form = new BodyPartViewModel();
+        }
+    }
+
+    private async Task SaveBodyPart()
+    {
+        if (id.HasValue && id.Value != Guid.Empty)
+        {
+            var command = new UpdateBodyPartCommand { Id = id.Value, Name = Form!.Name };
+            await CommandDispatcher.Dispatch<UpdateBodyPartCommand, bool>(command, CancellationToken.None);
+        }
+        else
+        {
+            var command = new CreateBodyPartCommand { Name = Form!.Name };
+            await CommandDispatcher.Dispatch<CreateBodyPartCommand, Guid>(command, CancellationToken.None);
+        }
+
+        Navigation.NavigateTo("/admin/bodyparts");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/admin/bodyparts");
+    }
+}

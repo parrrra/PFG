@@ -1,0 +1,216 @@
+@page "/admin/exercises/add"
+@page "/admin/exercises/edit/{id:guid}"
+@attribute [Authorize(Roles = GymPlanner.Common.Constants.Roles.Admin)]
+
+@rendermode InteractiveServer
+@inject IQueryDispatcher QueryDispatcher
+@inject ICommandDispatcher CommandDispatcher
+@inject BreadcrumbService BreadcrumbSvc
+@inject NavigationManager Navigation
+
+<PageTitle>@(id.HasValue ? "Editar ejercicio" : "Nuevo ejercicio")</PageTitle>
+
+<div class="edit-grid-container">
+    <header class="edit-header">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="fs-5 fw-semibold">
+                @(id.HasValue ? "Editar ejercicio" : "Nuevo ejercicio")
+            </span>
+            <span class="flex-grow-1"></span>
+            <button class="btn btn-secondary" @onclick="Cancel" type="button">
+                <i class="bi bi-arrow-left"></i>
+                <span class="d-none d-md-inline">Volver</span>
+            </button>
+        </div>
+    </header>
+    <main class="edit-content">
+        @if (Form is null)
+        {
+            <div class="d-flex justify-content-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        }
+        else
+        {
+            <EditForm Model="Form" OnValidSubmit="SaveExercise" Id="editExerciseForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="alert alert-danger ps-5" />
+
+                <div class="form-group mb-3">
+                    <label class="form-label">Nombre</label>
+                    <InputText class="form-control" @bind-Value="Form.Name" autocomplete="off" />
+                    <ValidationMessage For="@(() => Form.Name)" />
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="form-label">Parte del cuerpo</label>
+                    <InputSelect class="form-select" @bind-Value="Form.BodyPartId">
+                        <option value="">-- Selecciona --</option>
+                        @foreach (var part in BodyParts)
+                        {
+                            <option value="@part.Id">@part.Name</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => Form.BodyPartId)" />
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="form-label">Descripción</label>
+                    <InputTextArea class="form-control" @bind-Value="Form.Description" rows="3" />
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="form-label">Progresión semanal por nivel</label>
+                    <div class="row g-2">
+                        @foreach (var prog in Form.TrainingLevelProgressions)
+                        {
+                            <div class="col-12 col-md-4">
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">@prog.TrainingLevelName</span>
+                                    <InputNumber class="form-control" @bind-Value="prog.WeeklyImprovement" />
+                                    <span class="input-group-text">/semana</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </EditForm>
+        }
+    </main>
+    @if (Form is not null)
+    {
+        <footer class="edit-footer">
+            <button class="btn btn-secondary" type="button" @onclick="Cancel">
+                <i class="bi bi-x-lg"></i> Cancelar
+            </button>
+            <button class="btn btn-primary" type="submit" form="editExerciseForm">
+                <i class="bi bi-check-lg"></i> Guardar
+            </button>
+        </footer>
+    }
+</div>
+
+
+@code {
+    [Parameter] public Guid? id { get; set; }
+
+    private ExerciseViewModel? Form;
+    private List<BodyPartDto> BodyParts = [];
+    private List<TrainingLevelDto> TrainingLevels = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        BreadcrumbSvc.SetBreadcrumbs(new List<BreadcrumbItem>
+{
+new("Inicio", "/"),
+new("Ejercicios", "/admin/exercises"),
+new(id.HasValue ? "Editar" : "Añadir", $"/admin/exercises{(id.HasValue ? $"/edit/{id}" : "/add")}")
+});
+
+        await LoadBodyParts();
+        await LoadTrainingLevels();
+
+        if (id.HasValue && id.Value != Guid.Empty)
+        {
+            var query = new GetExerciseQuery { Id = id.Value };
+            var dto = await QueryDispatcher.Dispatch<GetExerciseQuery, ExerciseDto?>(query, CancellationToken.None);
+
+            if (dto is null)
+            {
+                Navigation.NavigateTo("/admin/exercises");
+                return;
+            }
+            Form = ExerciseMappings.ToViewModel(dto);
+
+            Form.TrainingLevelProgressions = TrainingLevels
+            .Select(lvl =>
+            {
+                var progression = Form.TrainingLevelProgressions.FirstOrDefault(x => x.TrainingLevelId == lvl.Id);
+                return progression != null
+    ? new ExerciseProgressionViewModel
+            {
+                TrainingLevelId = lvl.Id,
+                TrainingLevelName = lvl.Name,
+                WeeklyImprovement = progression.WeeklyImprovement
+            }
+    : new ExerciseProgressionViewModel
+            {
+                TrainingLevelId = lvl.Id,
+                TrainingLevelName = lvl.Name,
+                WeeklyImprovement = 0
+            };
+            }).ToList();
+        }
+        else
+        {
+            Form = new ExerciseViewModel();
+            Form.TrainingLevelProgressions = TrainingLevels
+            .Select(x => new ExerciseProgressionViewModel
+            {
+                TrainingLevelId = x.Id,
+                TrainingLevelName = x.Name,
+                WeeklyImprovement = 0
+            }).ToList();
+        }
+    }
+
+    private async Task LoadBodyParts()
+    {
+        var query = new GetBodyPartsQuery { PageNumber = 1, PageSize = 1000 };
+        var result = await QueryDispatcher.Dispatch<GetBodyPartsQuery, PaginatedResult<BodyPartDto>>(query,
+        CancellationToken.None);
+        BodyParts = result.Items;
+    }
+
+    private async Task LoadTrainingLevels()
+    {
+        TrainingLevels = await QueryDispatcher.Dispatch<GetTrainingLevelsQuery, List<TrainingLevelDto>>(new(),
+        CancellationToken.None);
+    }
+
+    private async Task SaveExercise()
+    {
+        if (id.HasValue && id.Value != Guid.Empty)
+        {
+            var command = new UpdateExerciseCommand
+            {
+                Id = id.Value,
+                Name = Form!.Name,
+                BodyPartId = Form.BodyPartId,
+                Description = Form.Description,
+                TrainingLevelProgressions = Form.TrainingLevelProgressions
+            .Select(x => new ExerciseProgressionDto
+            {
+                TrainingLevelId = x.TrainingLevelId,
+                TrainingLevelName = x.TrainingLevelName,
+                WeeklyImprovement = x.WeeklyImprovement
+            }).ToList()
+            };
+            await CommandDispatcher.Dispatch<UpdateExerciseCommand, bool>(command, CancellationToken.None);
+        }
+        else
+        {
+            var command = new CreateExerciseCommand
+            {
+                Name = Form!.Name,
+                BodyPartId = Form.BodyPartId,
+                Description = Form.Description,
+                TrainingLevelProgressions = Form.TrainingLevelProgressions
+            .Select(x => new ExerciseProgressionDto
+            {
+                TrainingLevelId = x.TrainingLevelId,
+                TrainingLevelName = x.TrainingLevelName,
+                WeeklyImprovement = x.WeeklyImprovement
+            }).ToList()
+            };
+            await CommandDispatcher.Dispatch<CreateExerciseCommand, Guid>(command, CancellationToken.None);
+        }
+
+        Navigation.NavigateTo("/admin/exercises");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/admin/exercises");
+    }
+}

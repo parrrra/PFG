@@ -1,0 +1,72 @@
+@using GymPlanner.Presentation.ViewModels.TrainingViewModels
+@rendermode InteractiveServer
+<div class="mt-2">
+    <b>Series reales realizadas:</b>
+    <table class="table table-sm table-bordered table-striped">
+        <thead class="table-light">
+            <tr>
+                <th>Orden</th>
+                <th>Repeticiones</th>
+                <th>Peso</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (int i = 0; i < Sets.Count; i++)
+            {
+                var s = Sets[i];
+                <tr>
+                    <td>@(i + 1)</td>
+                    <td>
+                        <InputNumber class="form-control form-control-sm" @bind-Value="s.Repetitions" />
+                    </td>
+                    <td>
+                        <InputNumber class="form-control form-control-sm" @bind-Value="s.Weight" />
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-danger btn-sm" @onclick="() => RemoveSetById(s.Id)"
+                            disabled="@(Sets.Count == 1)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            }
+
+        </tbody>
+    </table>
+    <button class="btn btn-success btn-sm" type="button" @onclick="AddSet">
+        <i class="bi bi-plus-lg"></i> Añadir set
+    </button>
+</div>
+
+@code {
+    [Parameter] public List<TrainingExerciseSetViewModel> Sets { get; set; } = [];
+
+    private void AddSet()
+    {
+        int newOrder = Sets.Count > 0 ? Sets.Max(s => s.Order) + 1 : 1;
+        Sets.Add(new TrainingExerciseSetViewModel
+        {
+            Id = Guid.NewGuid(),
+            Order = newOrder,
+            Repetitions = 0,
+            Weight = 0
+        });
+    }
+
+    private void RemoveSetById(Guid id)
+    {
+        if (Sets.Count <= 1) return;
+
+        var setToRemove = Sets.FirstOrDefault(x => x.Id == id);
+        if (setToRemove is null) return;
+
+        Sets.Remove(setToRemove);
+
+        for (int i = 0; i < Sets.Count; i++)
+            Sets[i].Order = i + 1;
+
+        StateHasChanged();
+    }
+
+}

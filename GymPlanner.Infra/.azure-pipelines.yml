@@ -1,0 +1,116 @@
+trigger:
+  branches:
+    include:
+      - development
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - name: env
+    ${{ if eq(variables['Build.SourceBranchName'], 'development') }}:
+      value: dev
+    ${{ else }}:
+      value: prod
+
+  - name: tfRoot
+    value: environments/$(env)
+
+  - name: azureConnection
+    ${{ if eq(variables['Build.SourceBranchName'], 'development') }}:
+      value: Azure-Connection-Dev
+    ${{ else }}:
+      value: Azure-Connection-Prod
+
+  - name: azureEnvironmentName
+    ${{ if eq(variables['Build.SourceBranchName'], 'development') }}:
+      value: terraform-dev
+    ${{ else }}:
+      value: terraform-prod
+
+stages:
+  - stage: TerraformPlan
+    displayName: "Terraform Plan Stage"
+    jobs:
+      - job: Plan
+        displayName: "Generate Terraform Plan"
+        steps:
+          - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@1
+            displayName: "Install Terraform"
+            inputs:
+              terraformVersion: "1.12.1"
+
+          - task: TerraformTaskV4@4
+            displayName: "Init Terraform"
+            inputs:
+              provider: "azurerm"
+              command: "init"
+              workingDirectory: "$(tfRoot)"
+              backendServiceArm: "$(azureConnection)"
+              backendAzureRmResourceGroupName: "rg-gymplanner-$(env)-westeu-01"
+              backendAzureRmStorageAccountName: "tfstategymplanner$(env)jnq"
+              backendAzureRmContainerName: "tfstate"
+              backendAzureRmKey: "terraform.tfstate"
+
+          - task: TerraformTaskV4@4
+            displayName: "Terraform plan"
+            inputs:
+              provider: "azurerm"
+              command: "plan"
+              workingDirectory: "$(tfRoot)"
+              environmentServiceNameAzureRM: "$(azureConnection)"
+              commandOptions: "-out=tfplan"
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish Terraform Artifacts (including plan)"
+            inputs:
+              targetPath: "$(tfRoot)"
+              artifactName: tfplanArtifact
+
+  - stage: TerraformApply
+    displayName: "Terraform Apply Stage"
+    dependsOn: TerraformPlan
+    condition: succeeded()
+    jobs:
+      - deployment: Apply
+        displayName: "Apply Terraform Plan"
+        environment: $(azureEnvironmentName)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: tfplanArtifact
+                  displayName: "Download Terraform Artifacts"
+
+                - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@1
+                  displayName: "Install Terraform"
+                  inputs:
+                    terraformVersion: "1.12.1"
+                - task: TerraformTaskV4@4
+                  displayName: "Init Terraform again"
+                  inputs:
+                    provider: "azurerm"
+                    command: "init"
+                    workingDirectory: "$(Pipeline.Workspace)/tfplanArtifact"
+                    backendServiceArm: "$(azureConnection)"
+                    backendAzureRmResourceGroupName: "rg-gymplanner-$(env)-westeu-01"
+                    backendAzureRmStorageAccountName: "tfstategymplanner$(env)jnq"
+                    backendAzureRmContainerName: "tfstate"
+                    backendAzureRmKey: "terraform.tfstate"
+                    commandOptions: "-reconfigure"
+
+                - script: |
+                    chmod +x .terraform/providers/registry.terraform.io/hashicorp/azurerm/*/linux_amd64/terraform-provider-azurerm*
+                  workingDirectory: "$(Pipeline.Workspace)/tfplanArtifact"
+                  displayName: "Fix provider permissions"
+
+                - task: TerraformTaskV4@4
+                  displayName: "Terraform apply"
+                  inputs:
+                    provider: "azurerm"
+                    command: "apply"
+                    workingDirectory: "$(Pipeline.Workspace)/tfplanArtifact"
+                    environmentServiceNameAzureRM: "$(azureConnection)"
+                    commandOptions: "-input=false tfplan"

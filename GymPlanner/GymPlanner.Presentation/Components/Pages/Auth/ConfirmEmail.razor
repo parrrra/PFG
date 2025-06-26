@@ -1,0 +1,62 @@
+@page "/confirmemail"
+@using GymPlanner.Application.Users.Commands.ConfirmEmail
+@using GymPlanner.Presentation.Components.Layout
+@inject ICommandDispatcher CommandDispatcher
+@inject NavigationManager Nav
+@inject BreadcrumbService BreadcrumbSvc
+@layout LoginRegisterLayout
+<PageTitle>Confirmación de cuenta</PageTitle>
+
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-7">
+            <div class="card shadow-lg p-4 rounded text-center">
+                <div class="card-body">
+                    @if (confirmed is null)
+                    {
+                        <p class="text-secondary fs-5">Verificando...</p>
+                    }
+                    else if (confirmed == true)
+                    {
+                        <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem; margin-bottom: 20px;"></i>
+                        <h3 class="card-title mb-3">¡Cuenta confirmada!</h3>
+                        <p class="text-secondary fs-5">Tu correo ha sido verificado con éxito. Ya puedes iniciar sesión.</p>
+                        <a class="btn btn-primary mt-3" href="/login">Iniciar sesión</a>
+                    }
+                    else
+                    {
+                        <i class="bi bi-x-circle-fill text-danger" style="font-size: 4rem; margin-bottom: 20px;"></i>
+                        <h3 class="card-title mb-3">Error de confirmación</h3>
+                        <p class="text-secondary fs-5">El enlace no es válido o ya ha sido utilizado.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool? confirmed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+        if (query.TryGetValue("userId", out var userId) && query.TryGetValue("token", out var token))
+        {
+            var command = new ConfirmEmailCommand
+            {
+                UserId = userId!,
+                Token = token!
+            };
+
+            confirmed = await CommandDispatcher.Dispatch<ConfirmEmailCommand, bool>(command, CancellationToken.None);
+        }
+        else
+        {
+            confirmed = false;
+        }
+    }
+}

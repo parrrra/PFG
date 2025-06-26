@@ -1,0 +1,123 @@
+﻿@using Microsoft.AspNetCore.Components
+
+<div class="d-flex justify-content-between align-items-center gap-2">
+    <div>
+        <label for="pageSize" class="me-2">Items:</label>
+        <select id="pageSize" class="form-select d-inline-block w-auto" @bind="PageSize"
+            @bind:after="OnPageSizeChangedInternal">
+            @foreach (var size in PageSizeOptions)
+            {
+                <option value="@size">@size</option>
+            }
+        </select>
+    </div>
+    <div class="flex-grow-1 text-start">
+        <span class="text-muted small">
+            @GetDisplayRange()
+        </span>
+    </div>
+    <nav>
+        <ul class="pagination mb-0">
+            <li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
+                <button class="page-link" @onclick="() => OnPageChangedInternal(1)" aria-label="First">
+                    <i class="bi bi-chevron-double-left"></i>
+                </button>
+            </li>
+            <li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
+                <button class="page-link" @onclick="() => OnPageChangedInternal(CurrentPage - 1)" aria-label="Previous">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            </li>
+            @foreach (var s in GetPageNumbers())
+            {
+                <li class="page-item @(s == CurrentPage ? "active" : "")">
+                    <button class="page-link" @onclick="() => OnPageChangedInternal(s)">@s</button>
+                </li>
+            }
+            <li class="page-item @(CurrentPage == TotalPages ? "disabled" : "")">
+                <button class="page-link" @onclick="() => OnPageChangedInternal(CurrentPage + 1)" aria-label="Next">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </li>
+            <li class="page-item @(CurrentPage == TotalPages ? "disabled" : "")">
+                <button class="page-link" @onclick="() => OnPageChangedInternal(TotalPages)" aria-label="Last">
+                    <i class="bi bi-chevron-double-right"></i>
+                </button>
+            </li>
+        </ul>
+    </nav>
+
+</div>
+
+@code {
+    [Parameter] public int CurrentPage { get; set; } = 1;
+    [Parameter] public int TotalPages { get; set; }
+    [Parameter] public int PageSize { get; set; }
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public EventCallback<int> OnPageChanged { get; set; }
+    [Parameter] public EventCallback<int> OnPageSizeChanged { get; set; }
+    [Parameter] public IEnumerable<int> PageSizeOptions { get; set; } = new[] { 5, 10, 20 };
+
+    private int StartPage;
+    private int EndPage;
+
+    protected override void OnParametersSet()
+    {
+        CalculatePageRange();
+    }
+
+    private void CalculatePageRange()
+    {
+        if (TotalPages <= 3)
+        {
+            StartPage = 1;
+            EndPage = TotalPages;
+        }
+        else if (CurrentPage == 1)
+        {
+            StartPage = 1;
+            EndPage = 3;
+        }
+        else if (CurrentPage == TotalPages)
+        {
+            StartPage = TotalPages - 2;
+            EndPage = TotalPages;
+        }
+        else
+        {
+            StartPage = CurrentPage - 1;
+            EndPage = CurrentPage + 1;
+        }
+    }
+
+
+    private void OnPageChangedInternal(int page)
+    {
+        if (page != CurrentPage && page > 0 && page <= TotalPages)
+        {
+            CurrentPage = page;
+            OnPageChanged.InvokeAsync(page);
+            CalculatePageRange();
+        }
+    }
+
+    private void OnPageSizeChangedInternal()
+    {
+        OnPageSizeChanged.InvokeAsync(PageSize);
+    }
+
+    private IEnumerable<int> GetPageNumbers()
+    {
+        return Enumerable.Range(StartPage, EndPage - StartPage + 1);
+    }
+
+    private string GetDisplayRange()
+    {
+        if (TotalCount == 0)
+            return string.Empty;
+
+        var from = ((CurrentPage - 1) * PageSize) + 1;
+        var to = Math.Min(CurrentPage * PageSize, TotalCount);
+        return $"{from} al {to} de {TotalCount}";
+    }
+}

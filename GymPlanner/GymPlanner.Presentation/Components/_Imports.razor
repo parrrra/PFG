@@ -1,0 +1,65 @@
+﻿@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.JSInterop
+
+@using System.ComponentModel.DataAnnotations
+@using System.Net.Http
+@using System.Net.Http.Json
+@using System.Globalization
+
+@using GymPlanner.Application.BodyParts.Commands.CreateBodyPart
+@using GymPlanner.Application.BodyParts.Commands.DeleteBodyPart
+@using GymPlanner.Application.BodyParts.Commands.UpdateBodyPart
+@using GymPlanner.Application.BodyParts.DTOs
+@using GymPlanner.Application.BodyParts.Queries.GetBodyPart
+@using GymPlanner.Application.BodyParts.Queries.GetBodyParts
+
+@using GymPlanner.Application.Exercises.Commands.CreateExercise
+@using GymPlanner.Application.Exercises.Commands.DeleteExercise
+@using GymPlanner.Application.Exercises.Commands.UpdateExercise
+@using GymPlanner.Application.Exercises.DTOs
+@using GymPlanner.Application.Exercises.Queries.GetExercise
+@using GymPlanner.Application.Exercises.Queries.GetExercises
+
+@using GymPlanner.Application.TrainingLevel.DTOs
+@using GymPlanner.Application.TrainingLevel.Queries
+
+@using GymPlanner.Application.Users.Commands.LoginUser
+@using GymPlanner.Application.Users.Commands.RegisterUser
+@using GymPlanner.Application.Users.DTOs
+
+@using GymPlanner.Application.TrainingTemplates.Commands.CreateTrainingTemplate
+@using GymPlanner.Application.TrainingTemplates.Commands.DeleteTrainingTemplate
+@using GymPlanner.Application.TrainingTemplates.Commands.UpdateTrainingTemplate
+@using GymPlanner.Application.TrainingTemplates.Queries.GetTrainingTemplate
+@using GymPlanner.Application.TrainingTemplates.Queries.GetTrainingTemplates
+@using GymPlanner.Application.TrainingTemplates.Commands
+@using GymPlanner.Application.TrainingTemplates.Queries
+@using GymPlanner.Application.TrainingTemplates.DTOs
+
+@using GymPlanner.Common.CQRS
+@using GymPlanner.Common.Utils
+
+@using GymPlanner.Domain.Interfaces
+
+@using GymPlanner.Presentation.Components.Shared
+@using GymPlanner.Presentation.Services
+@using GymPlanner.Presentation.Helpers
+
+@using GymPlanner.Presentation.ViewModels.BodyPartViewModels
+@using GymPlanner.Presentation.ViewModels.ExerciseViewModels
+@using GymPlanner.Presentation.ViewModels.LoginUserViewModels
+@using GymPlanner.Presentation.ViewModels.RegisterUserViewModels
+@using GymPlanner.Presentation.ViewModels.TrainingTemplateViewModels
+
+
+
+@using GymPlanner.Application.Routines.Commands.DeleteRoutine
+@using GymPlanner.Application.Routines.Queries.GetRoutines
+@using GymPlanner.Presentation.ViewModels.RoutineViewModels
+@using GymPlanner.Application.Routines.DTOs

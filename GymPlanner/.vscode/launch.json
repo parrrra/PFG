@@ -1,0 +1,53 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        
+      {
+        "name": "Debug Blazor con Hot Reload",
+        "type": "coreclr",
+        "request": "launch",
+        "preLaunchTask": "Run Blazor con Hot Reload",
+        "program": "${workspaceFolder}/GymPlanner.Presentation/bin/Debug/net8.0/GymPlanner.Presentation.dll",
+        "args": [],
+        "cwd": "${workspaceFolder}/GymPlanner.Presentation",
+        "stopAtEntry": false,
+        "serverReadyAction": {
+          "action": "openExternally",
+          "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+        },
+        "env": {
+          "ASPNETCORE_ENVIRONMENT": "Development"
+        },
+        "sourceFileMap": {
+          "/Views": "${workspaceFolder}/GymPlanner.Presentation/Views"
+        },
+        "dotnetRunMessages": true
+      },
+        {
+      "name": "Run GymPlanner in Localhost",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build GymPlanner",
+      "program": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/GymPlanner.Presentation",
+        "--environment",
+        "Localhost"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Localhost"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+      },
+      "dotnetRunMessages": true,
+      "console": "internalConsole"
+    }
+  
+    ]
+  }
+  

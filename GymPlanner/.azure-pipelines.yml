@@ -1,0 +1,95 @@
+trigger:
+  branches:
+    include:
+      - development
+      - main
+
+pool:
+  vmImage: "ubuntu-latest"
+
+variables:
+  - ${{ if eq(variables['Build.SourceBranchName'], 'development') }}:
+      - name: env
+        value: dev
+      - name: azureConnection
+        value: Azure-Connection-Dev
+  - ${{ else }}:
+      - name: env
+        value: prod
+      - name: azureConnection
+        value: Azure-Connection-Prod
+
+  - name: webAppName
+    value: webapp-gymplanner-$(env)-westeu-01
+  - name: runtimeStack
+    value: "DOTNETCORE|8.0"
+  - name: keyVaultName
+    value: kv-gymplanner-$(env)
+
+steps:
+  - task: UseDotNet@2
+    inputs:
+      packageType: sdk
+      version: "8.x"
+    displayName: "Instala .NET 8 SDK"
+
+  - task: AzureKeyVault@2
+    name: FetchSecrets
+    inputs:
+      azureSubscription: $(azureConnection)
+      KeyVaultName: $(keyVaultName)
+      SecretsFilter: sql-connection-string,gmail-password
+      RunAsPreJob: true
+    displayName: "Obtiene secretos del Key Vault"
+
+  - script: |
+      dotnet restore GymPlanner.sln
+      dotnet publish GymPlanner.Presentation -c Release -o $(Build.ArtifactStagingDirectory)/publish
+    displayName: "Compila y publica"
+
+  - script: |
+      dotnet tool install --global dotnet-ef
+      export PATH="$PATH:~/.dotnet/tools"
+      dotnet ef database update --project GymPlanner.Infrastructure --startup-project GymPlanner.Presentation
+    displayName: "Aplica migraciones EF"
+    env:
+      ConnectionStrings__DefaultConnection: $(sql-connection-string)
+
+  - task: ArchiveFiles@2
+    inputs:
+      rootFolderOrFile: $(Build.ArtifactStagingDirectory)/publish
+      includeRootFolder: false
+      archiveFile: $(Build.ArtifactStagingDirectory)/site.zip
+      archiveType: zip
+    displayName: "Empaqueta site.zip"
+
+  - task: AzureAppServiceSettings@1
+    displayName: "Configura cadena de conexión en Web App"
+    inputs:
+      azureSubscription: $(azureConnection)
+      appName: $(webAppName)
+      connectionStrings: |
+        [
+          {
+            "name": "DefaultConnection",
+            "value": "$(sql-connection-string)",
+            "type": "SQLAzure",
+            "slotSetting": false
+          }
+        ]
+      appSettings: |
+        [
+          {
+            "name": "Email__Password",
+            "value": "$(gmail-password)",
+            "slotSetting": false
+          }
+        ]
+
+  - task: AzureWebApp@1
+    displayName: "Despliega a $(webAppName)"
+    inputs:
+      azureSubscription: $(azureConnection)
+      appName: $(webAppName)
+      package: $(Build.ArtifactStagingDirectory)/site.zip
+      runtimeStack: $(runtimeStack)

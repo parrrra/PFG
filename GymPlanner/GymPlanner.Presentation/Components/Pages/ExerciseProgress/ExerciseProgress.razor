@@ -1,0 +1,221 @@
+@page "/exercise-progress"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{GymPlanner.Common.Constants.Roles.Admin},{GymPlanner.Common.Constants.Roles.User}")]
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@using GymPlanner.Application.Exercises.DTOs
+@using GymPlanner.Application.Trainings.DTOs
+@using GymPlanner.Application.Trainings.Queries.GetExerciseProgression
+@inject IQueryDispatcher QueryDispatcher
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Progreso de Ejercicio</PageTitle>
+
+<div class="list-grid-container">
+    <header class="list-header mb-3">
+        <h3 class="mb-3">Progreso en el tiempo</h3>
+        <div class="row">
+            <div class="col-12 col-md-4 mb-2">
+                <InputSelect class="form-select" @bind-Value="_selectedExerciseId"
+                    @bind-Value:after="OnAnyFilterChanged">
+                    <option value="">-- Selecciona un ejercicio --</option>
+                    <option value="@Guid.Empty">-- Ver todos --</option>
+                    @foreach (var exercise in _exercises)
+                    {
+                        <option value="@exercise.Id">@exercise.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-12 col-md-4 mb-2">
+                <InputDate class="form-control" @bind-Value="_startDate" @bind-Value:after="OnAnyFilterChanged" />
+            </div>
+            <div class="col-12 col-md-4 d-flex align-items-center gap-2">
+                <InputDate class="form-control" @bind-Value="_endDate" @bind-Value:after="OnAnyFilterChanged" />
+                <button class="btn btn-secondary" @onclick="ResetFilters" type="button" title="Limpiar filtros">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="list-content">
+        <div class="main-table-container">
+            @if (_isLoading)
+            {
+                <div class="text-center p-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+            }
+            else if (_selectedExerciseId == null)
+            {
+                <div class="alert alert-info">Seleccione un ejercicio para ver el progreso</div>
+            }
+            else if (_noData)
+            {
+                <div class="alert alert-warning">No hay datos de progresión para el(los) ejercicio(s) en el rango
+                    seleccionado.</div>
+            }
+            else
+            {
+                <div class="position-relative" style="width: 100%; aspect-ratio: 16/9;">
+                    <canvas id="exerciseProgressChart" class="position-absolute top-0 start-0 w-100 h-100"></canvas>
+                </div>
+            }
+        </div>
+    </main>
+</div>
+
+@code {
+    private List<ExerciseDto> _exercises = new();
+    private Guid? _selectedExerciseId = null;
+    private Guid _userId;
+    private bool _isLoading = false;
+    private bool _noData = false;
+
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+
+    private bool _shouldRenderChart = false;
+    private bool _isMultiple = false;
+    private List<string> _chartLabels = new();
+    private List<double> _chartValues = new();
+    private string _chartTitle = string.Empty;
+    private List<object>? _multiChartData = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = Guid.Parse(authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+
+        var result = await QueryDispatcher.Dispatch<GetExercisesQuery, PaginatedResult<ExerciseDto>>(
+        new GetExercisesQuery { PageNumber = 1, PageSize = 1000 }, CancellationToken.None);
+
+        if (result?.Items != null)
+            _exercises = result.Items.ToList();
+
+        ResetDateRange();
+    }
+
+    private void ResetDateRange()
+    {
+        var today = DateTime.Today;
+        _startDate = new DateTime(today.Year, today.Month, 1);
+        _endDate = _startDate.Value.AddMonths(3).AddDays(-1);
+    }
+
+    private async Task ResetFilters()
+    {
+        ResetDateRange();
+        _selectedExerciseId = null;
+        _noData = false;
+        _shouldRenderChart = false;
+        _chartLabels.Clear();
+        _chartValues.Clear();
+        _multiChartData = null;
+        await JSRuntime.InvokeVoidAsync("destroyChart", "exerciseProgressChart");
+        StateHasChanged();
+    }
+
+    private async Task OnAnyFilterChanged()
+    {
+        if (!_selectedExerciseId.HasValue)
+            return;
+
+        _isLoading = true;
+        _noData = false;
+        _shouldRenderChart = false;
+        StateHasChanged();
+
+        var query = new GetExerciseProgressionQuery
+        {
+            ExerciseId = _selectedExerciseId == Guid.Empty ? (Guid?)null : _selectedExerciseId,
+            UserId = _userId,
+            StartDate = _startDate.HasValue ? DateOnly.FromDateTime(_startDate.Value) : null,
+            EndDate = _endDate.HasValue ? DateOnly.FromDateTime(_endDate.Value) : null
+        };
+
+        var progression = await QueryDispatcher.Dispatch<GetExerciseProgressionQuery, List<TrainingExerciseProgressionDto>>(
+        query, CancellationToken.None);
+
+        _isLoading = false;
+
+        if (progression == null || !progression.Any())
+        {
+            _noData = true;
+            await JSRuntime.InvokeVoidAsync("destroyChart", "exerciseProgressChart");
+            StateHasChanged();
+            return;
+        }
+
+        if (_selectedExerciseId == Guid.Empty)
+        {
+            var grouped = progression
+            .GroupBy(x => x.ExerciseName)
+            .ToDictionary(
+            g => g.Key,
+            g => g.OrderBy(x => x.Date).ToList()
+            );
+
+            _multiChartData = grouped.Select(group =>
+            {
+                var groupedByDate = group.Value
+    .GroupBy(x => x.Date.ToString("yyyy-MM-dd"))
+    .OrderBy(g => g.Key)
+    .ToList();
+
+                return new
+                {
+                    Label = group.Key,
+                    Dates = groupedByDate.Select(g => g.Key).ToList(),
+                    Data = groupedByDate.Select(g => g.Average(x => x.Weight)).ToList()
+                };
+            }).ToList<object>();
+
+
+
+            _chartLabels = grouped.SelectMany(g => g.Value.Select(x => x.Date.ToString("yyyy-MM-dd")))
+            .Distinct()
+            .OrderBy(d => d)
+            .ToList();
+            _isMultiple = true;
+        }
+        else
+        {
+            var ordered = progression
+            .GroupBy(x => x.Date.ToString("yyyy-MM-dd"))
+            .OrderBy(g => g.Key)
+            .ToList();
+
+            _chartLabels = ordered.Select(g => g.Key).ToList();
+            _chartValues = ordered.Select(g => g.Average(x => x.Weight)).ToList();
+            _isMultiple = false;
+            _multiChartData = null;
+        }
+
+        _chartTitle = "Evolución del peso";
+        _shouldRenderChart = true;
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldRenderChart)
+        {
+            _shouldRenderChart = false;
+
+            if (_isMultiple && _multiChartData != null)
+            {
+                await JSRuntime.InvokeVoidAsync("renderMultipleLineChart", "exerciseProgressChart", _chartLabels, _multiChartData,
+                _chartTitle);
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("renderLineChart", "exerciseProgressChart", _chartLabels, _chartValues, _chartTitle);
+            }
+        }
+    }
+}

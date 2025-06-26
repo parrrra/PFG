@@ -1,0 +1,14 @@
+﻿@page "/logout"
+@using GymPlanner.Application.Users.Commands.LogoutUser
+@using GymPlanner.Common.CQRS
+@inject ICommandDispatcher CommandDispatcher
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await CommandDispatcher.Dispatch<LogoutUserCommand, bool>(new LogoutUserCommand(), CancellationToken.None);
+
+        Nav.NavigateTo("/signedout", true);
+    }
+}
