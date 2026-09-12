@@ -2,9 +2,7 @@ name: Build MimicFiesta APK
 
 on:
   push:
-    branches: [ mimicfiesta-build ]
-  pull_request:
-    branches: [ main ]
+    branches: [ mimicfiesta-v2 ]
   workflow_dispatch:
 
 jobs:
@@ -32,16 +30,6 @@ jobs:
           tar -xzf /tmp/mimicfiesta-src.tar.gz -C /tmp/MimicFiesta
           cd /tmp/MimicFiesta
           python3 tools/generate_sounds.py
-          cat >> app/build.gradle <<'EOF'
-
-          configurations.configureEach {
-              resolutionStrategy {
-                  force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
-                  force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
-                  force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
-              }
-          }
-          EOF
       - name: Build APK
         working-directory: /tmp/MimicFiesta
         run: gradle --no-daemon :app:assembleDebug
@@ -51,6 +39,6 @@ jobs:
           ls -lh /tmp/MimicFiesta/app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: MimicFiesta-debug-apk
+          name: MimicFiesta-v2-apk
           path: /tmp/MimicFiesta/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
