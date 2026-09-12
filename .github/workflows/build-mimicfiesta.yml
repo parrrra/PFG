@@ -3,6 +3,8 @@ name: Build MimicFiesta APK
 on:
   push:
     branches: [ mimicfiesta-build ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
